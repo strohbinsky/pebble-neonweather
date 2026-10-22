@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<!-- Settings page of Neonweather. tools/seite_erzeugen.py turns it into src/pkjs/seite.js; the phone script fills in
+     the state (z: day, night, presets), the colour list (L), the pressure positions (D), the block contents (IN) and
+     the blocks (BL) from logik.js plus the symbols for the preview (SY, from symbole.js, since 0.22.0) at the bottom of the script and opens it as a data: URL. The placeholders must appear there and nowhere else.
+     Night: z.nacht holds only changed values; everything else the night shows and takes from the day.
+     Since 0.14.0 in collapsible sections; every colour sits next to its function.
+     Presets since 0.21.0: "Load" asks what for — day (the night keeps its look), night (the preset's day look) or both.
+     Language since 0.27.0: the page is written in English; DE holds the German texts, uebersetzen() swaps them in when sp = "de". -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Neonweather</title>
+<style>
+*{box-sizing:border-box}body{font-family:sans-serif;margin:0;padding:16px;background:#111;color:#eee}
+h1{font-size:20px;margin:0 0 10px}
+#v{display:block;margin:0 auto;width:200px;height:228px;image-rendering:pixelated;border-radius:6px}
+.hinweis{text-align:center;color:#888;font-size:12px;margin:4px 0 0}.info{color:#aaa;font-size:13px;margin:4px 2px 10px}
+.reiter{display:flex;gap:8px;margin:14px 0 8px}.reiter span{flex:1;text-align:center;padding:10px;border-radius:10px;background:#222;font-size:16px;cursor:pointer}
+.reiter span.a{background:#AA00AA;color:#fff}
+.sek{background:#1b1b1b;border-radius:12px;margin-bottom:8px;overflow:hidden}
+.kopf{display:flex;align-items:center;padding:14px;font-size:17px;cursor:pointer}.kopf small{color:#888;font-size:13px;margin-left:8px}
+.kopf b{margin-left:auto;font-weight:normal;color:#aaa}.inn{padding:0 10px 10px}
+.u{color:#aaa;font-size:13px;text-transform:uppercase;letter-spacing:.05em;margin:12px 4px 6px}
+.z,.o{display:flex;align-items:center;gap:12px;background:#262626;border-radius:10px;padding:10px 12px;margin-bottom:6px;font-size:16px;cursor:pointer}
+.z small{margin-left:auto;color:#888;font-family:monospace}.o small{display:block;color:#888;font-size:13px}
+.w{opacity:.45}.x{margin-left:8px;color:#FF55FF;font-size:20px;padding:0 4px}
+.k{width:40px;height:24px;border-radius:4px;flex:none;border:1px solid #666;display:inline-block}
+.o .r{width:22px;height:22px;border-radius:50%;border:2px solid #888;flex:none}.o .r.a{background:#AA00AA;border-color:#FF55FF}
+.s{width:44px;height:24px;border-radius:12px;background:#444;flex:none;position:relative;margin-left:auto;display:inline-block}
+.s.a{background:#AA00AA}.s:after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff}.s.a:after{left:23px}
+.chips{display:flex;gap:6px;width:100%;margin-top:6px}.chips b{flex:1;text-align:center;font-weight:normal;padding:8px 0;border-radius:8px;background:#333;cursor:pointer}
+.chips b.a{background:#AA00AA}.chips.sp{margin:0 0 4px}.chips.sp b{padding:6px 0;font-size:14px}
+.blk{background:#262626;border-radius:10px;padding:10px 12px;margin-bottom:6px}.blk .t{font-size:14px;color:#ccc;margin-bottom:6px}
+.blk .zl{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.blk select{flex:1;min-width:120px;font-size:15px;padding:8px;border-radius:8px;background:#333;color:#eee;border:0}
+.mini{display:flex;flex-direction:column;align-items:center;font-size:11px;color:#999;gap:2px;cursor:pointer}
+.p{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;background:#151515;border-radius:10px;padding:8px;margin:-2px 0 10px}
+.f{aspect-ratio:1;border-radius:4px;border:1px solid #333}.f.a{outline:3px solid #fff;outline-offset:-1px}
+.ps{display:flex;align-items:center;gap:8px;background:#262626;border-radius:10px;padding:10px 12px;margin-bottom:6px;font-size:16px}
+.ps span:first-child{flex:1}.pn{font-style:normal}.ps small{display:block;color:#888;font-size:13px}
+.wahl{flex-wrap:wrap;margin:-2px 0 8px}.wahl b{min-width:40%;font-size:15px}.ps b{font-weight:normal;padding:6px 10px;border-radius:8px;background:#333;cursor:pointer}.ps b.weg{color:#ff7777}
+.neu{display:flex;gap:8px;margin-bottom:6px}.neu input{flex:1;min-width:0;font-size:16px;padding:10px;border-radius:10px;border:1px solid #444;background:#1a1a1a;color:#eee}
+.neu b{font-weight:normal;padding:10px 14px;border-radius:10px;background:#333;cursor:pointer}
+.code{background:#1b1b1b;border-radius:10px;padding:8px 10px;margin:-2px 0 8px}.code textarea{width:100%;height:96px;font-size:12px;font-family:monospace;background:#111;color:#ccc;border:1px solid #444;border-radius:8px;padding:6px}.code b{display:inline-block;font-weight:normal;padding:8px 14px;border-radius:8px;background:#333;cursor:pointer}
+button{width:100%;padding:14px;font-size:17px;border:0;border-radius:10px;background:#AA00AA;color:#fff;margin-top:10px}
+button.std{background:#222;color:#ddd;border:1px solid #555}
+</style></head>
+<body>
+<h1>Neonweather</h1>
+<canvas id="v" width="200" height="228"></canvas>
+<p class="hinweis" id="hw">Preview with sample data, simplified font</p>
+<div id="inhalt"></div>
+<button class="std" id="std">Reset all colors</button>
+<button id="ok">Save</button>
+<script>
+var z = /*ZUSTAND*/null, L = /*LISTE*/null, D = /*LAGEN*/null, IN = /*INHALTE*/null, BL = /*BLOECKE*/null, SY = /*SYMBOLE*/null;
+var KF = { t: ["kurve", "k_kante", "k_rand", "k_punkt", "k_pkante"], b: ["b_kurve", "b_kante", "b_rand", "b_punkt", "b_pkante"] };   // line, edge, outline, dot, edge of the dot
+var sp = z.sprache === "de" ? "de" : "en";   // page language (0.27.0): English unless German was picked
+var teilen = null;   // own preset whose code is shown (0.27.0)
+var seite = "tag", offen = null, sek = {}, wahl = null, meldung = "", P = [], S = ["00", "55", "AA", "FF"], NAME = {};
+for (var r = 0; r < 4; r++) for (var g = 0; g < 4; g++) for (var b = 0; b < 4; b++) P.push(S[r] + S[g] + S[b]);
+L.forEach(function (e) { NAME[e[0]] = e[1]; });
+var DICKEN = ["1 px", "2 px", "3 px", "4 px"], SCHWELLEN = ["0.1", "0.2", "0.3", "0.5", "1.0"];
+var REGEN = [["Full height", "columns from the bottom; on the fixed scale 1 mm/h reaches the time bar (umbrella time)"],
+             ["Bottom", "a strip below row 4; on the fixed scale half height = 1 mm/h"], ["Off", "no rain columns"]];
+
+// ---------- Language: German texts for every English text on the page (lists from logik.js included) ----------
+var DE = {
+  "Preview with sample data, simplified font": "Vorschau mit Beispieldaten, Schrift vereinfacht", "Save": "Speichern",
+  "Reset all colors": "Alle Farben auf Standard", "Sure? Tap again": "Wirklich? Nochmal tippen", "Night colors like day": "Nachtfarben wie am Tag",
+  "Day": "Tag", "Night": "Nacht", "as day": "wie Tag", "Night mode": "Nachtmodus", "from sunset to sunrise where you are": "von Sonnenuntergang bis Sonnenaufgang am Standort",
+  "Night mode is off: what you set here kicks in once it’s on.": "Nachtmodus ist aus: was du hier einstellst, wirkt erst, wenn er an ist.",
+  "The night borrows everything from the day. Changes here apply at night only; ↺ brings back the day value.": "Die Nacht übernimmt alles vom Tag. Was du hier änderst, gilt nur nachts; ↺ setzt es wieder auf den Tagwert.",
+  "yours and the stock ones": "eigene und Vorlagen laden", "Stock presets": "Vorlagen", "Load": "Laden", "Delete": "Löschen", "Cancel": "Abbrechen",
+  "For day": "Für den Tag", "For night": "Für die Nacht", "Day & night": "Tag und Nacht", "day & night": "Tag und Nacht", "Name, e.g. Neon": "Name, z. B. Neon",
+  "Load asks what for. “For day” leaves your night as it is; “For night” puts the preset’s day look on the night.": "Laden fragt, wofür. „Für den Tag“ lässt die Nacht, wie sie ist; „Für die Nacht“ legt das Tagesbild des Presets auf die Nacht.",
+  "Share": "Teilen", "Copy": "Kopieren", "Import": "Importieren", "Imported": "Importiert", "Paste a preset code": "Preset-Code einfügen",
+  "Copy the code and pass it on — it goes back in under Import.": "Code kopieren und weitergeben — eingefügt wird er unter Importieren.",
+  "Copied — paste it wherever you like.": "Kopiert — jetzt einfügen, wo du willst.", "Select the code and copy it by hand.": "Code markieren und von Hand kopieren.",
+  "That doesn’t look like a preset code.": "Das sieht nicht nach einem Preset-Code aus.", "20 presets is the limit — delete one first.": "Mehr als 20 Presets gehen nicht — erst eins löschen.",
+  "Paper": "Papier", "Sundial": "Sonnenuhr", "Neon Night": "Neon Nacht", "Paper Night": "Papier Nacht", "Retro Night": "Retro Nacht",
+  "Rows & content": "Zeilen und Inhalte", "numbers, symbols, curves, bars": "Zahlen, Symbole, Kurven, Balken",
+  "Every row except the time has two blocks: a number, a curve or symbols — two symbols per block. Smart symbols only show up when there’s a reason; the preview always shows them.":
+    "Jede Zeile außer der Uhrzeit hat zwei Blöcke: Zahl, Kurve oder Symbole — bei Symbolen zwei je Block. Symbole „bei Anlass“ erscheinen nur, wenn es einen gibt; die Vorschau zeigt sie immer.",
+  "Row 1 · top": "Zeile 1 · oben", "Show row 1": "Zeile 1 zeigen", "above the date, sunrise by default": "über dem Datum, Standard Sonnenaufgang",
+  "Row 2": "Zeile 2", "Row 3 · time": "Zeile 3 · Uhrzeit", "full width": "über die volle Breite", "Row 4": "Zeile 4", "Row 5 · bottom": "Zeile 5 · unten",
+  "Show row 5": "Zeile 5 zeigen", "below row 4, sunset by default": "unter Zeile 4, Standard Sonnenuntergang", "All digits and symbols": "Alle Ziffern und Symbole",
+  "left": "links", "right": "rechts", "Bar": "Balken", "Color": "Farbe", "Bar color": "Balkenfarbe", "Right cell": "Rechte Zelle",
+  "Numbers": "Zahlen", "Whole block": "Ganzer Block", "Smart symbols": "Symbole bei Anlass", "Fixed symbols": "Symbole fest",
+  "Curves": "Kurven", "temperature and pressure: all colors": "Temperatur und Luftdruck: alle Farben",
+  "Pick “Temperature curve” or “Pressure curve” as block content under “Rows & content”. The pressure curve shows the trend: the day’s range, at least 8 hPa tall — calm days stay flat.":
+    "Als Blockinhalt „Temperaturkurve“ oder „Luftdruckkurve“ unter „Zeilen und Inhalte“ wählen. Die Luftdruckkurve zeigt die Tendenz: Tagesbereich, mindestens 8 hPa hoch — ruhige Tage bleiben flach.",
+  "Rain": "Regen", "position, scale, color": "Lage, Skala, Farbe", "Position": "Lage", "Scale": "Skala",
+  "Full height": "Ganze Höhe", "columns from the bottom; on the fixed scale 1 mm/h reaches the time bar (umbrella time)": "Säulen von unten; mit fester Skala reicht 1 mm/h bis an den Uhrzeitbalken (Schirm)",
+  "Bottom": "Unten", "a strip below row 4; on the fixed scale half height = 1 mm/h": "Streifen unter Zeile 4; mit fester Skala halbe Höhe = 1 mm/h", "Off": "Aus", "no rain columns": "keine Regensäulen",
+  "Daily max = full height": "Tagesmaximum = volle Höhe", "the wettest hour fills its column, the rest scales along; off = fixed scale": "stärkste Stunde des Tages füllt die Säule, der Rest anteilig; aus = feste Skala",
+  "Threshold (mm/h)": "Schwelle (mm/h)", "less rain = no column, and it doesn’t count for the max": "weniger Regen = keine Säule, zählt nicht fürs Maximum",
+  "0.1": "0,1", "0.2": "0,2", "0.3": "0,3", "0.5": "0,5", "1.0": "1,0",
+  "Full columns": "Durchgängig", "every rainy hour as a full column, whatever the amount": "jede Regenstunde als volle Säule statt nach Menge",
+  "Pressure line": "Luftdrucklinie", "in the background: line, width, position, color": "im Hintergrund: Linie, Dicke, Lage, Farbe",
+  "Pressure arrow and curve live under “Rows & content” as block contents.": "Pfeil und Kurve für den Luftdruck gibt es als Blockinhalt unter „Zeilen und Inhalte“.",
+  "Show pressure line": "Luftdrucklinie zeigen", "985 hPa at the bottom, 1040 hPa at the top of the chosen zone": "985 hPa unten, 1040 hPa oben in der gewählten Zone",
+  "Line": "Linie", "dashed": "gestrichelt", "solid": "durchgezogen", "dashed = one dash per hour": "gestrichelt = ein Strich je Stunde", "Thickness": "Dicke", "Width": "Stärke",
+  "Top": "Oben", "the whole upper half, behind the date too": "ganze obere Hälfte, auch hinter dem Datum", "Top, narrow": "Oben schmal", "between the edge and the date": "zwischen Rand und Datum",
+  "Bottom, narrow": "Unten schmal", "between the temperature and the edge": "zwischen Temperatur und Rand", "the whole lower half, above the rain": "ganze untere Hälfte, über dem Regen",
+  "Time lines": "Zeitlinien", "vertical and horizontal": "senkrecht und waagerecht", "Vertical": "Senkrecht", "Horizontal": "Waagerecht",
+  "Vertical time line": "Senkrechte Zeitlinie", "a line at the current time": "Strich bei der aktuellen Uhrzeit",
+  "Rain cuts through": "Regen sticht durch", "rain columns sit in front of the line, but behind the bars": "Regensäulen liegen vor der Linie, aber hinter den Balken",
+  "Horizontal time line": "Waagerechte Zeitlinie", "height = time of day, like the sun position": "Höhe = Tageszeit, wie beim Sonnenstand",
+  "Frame": "Rahmen", "1 px around the lines; a cross gets one shared outline": "1 px um die Linien; bei einem Kreuz eine gemeinsame Kontur",
+  "Background": "Hintergrund", "color, columns": "Farbe, Säulen", "Columns": "Säulen", "a subtle column per hour, rain or not; off = rain only": "leise Säule je Stunde, auch ohne Regen; aus = nur Regen",
+  "Sun position": "Sonnenstand", "night, twilight, day, stripes": "Nacht, Dämmerung, Tag, Streifen",
+  "the time of day as background — 0:00 at the top, 24:00 at the bottom": "Tageszeit als Hintergrund — oben 0 Uhr, unten 24 Uhr",
+  "Area": "Fläche", "off = background color": "aus = Hintergrundfarbe", "Twilight": "Dämmerung", "Show twilight": "Dämmerung zeigen",
+  "civil twilight; off = night until sunrise and from sunset": "bürgerliche Dämmerung; aus = Nacht bis Sonnenaufgang und ab Sonnenuntergang",
+  "As gradient": "Als Verlauf", "from twilight 1 to 2; off = plain twilight 1": "von Dämmerung 1 zu 2; aus = einfarbig in Dämmerung 1",
+  "sunrise to sunset; off = background color": "Sonnenaufgang bis -untergang; aus = Hintergrundfarbe",
+  "Sunrise & sunset stripes": "Streifen bei Auf- und Untergang", "Stripes": "Streifen", "horizontal lines at the height of sunrise and sunset": "waagerecht auf Höhe der Uhrzeit von Sonnenauf- und -untergang",
+  "Rain behind day & twilight": "Regen hinter Tag und Dämmerung", "areas that are on cover columns and rain; rain stays visible at night": "eingeschaltete Flächen liegen vor Säulen und Regen; in der Nacht ist Regen zu sehen",
+  "Pressure (baro)": "Luftdruck (Baro)", "Time digits": "Ziffern Uhrzeit", "Digit outline": "Ziffernrand", "3D edge": "3D-Kante", "Time bar": "Balken Uhrzeit",
+  "Twilight 1": "Dämmerung 1", "Twilight 2": "Dämmerung 2", "Time line frame": "Rahmen der Zeitlinien", "Edge": "Kante", "Dot “now”": "Punkt „jetzt“", "Outline": "Rand",
+  "Dot edge": "Kante des Punkts", "Sunrise": "Aufgang", "Sunset": "Untergang",
+  "empty": "leer", "Month": "Monat", "Low": "Tiefstwert", "High": "Höchstwert", "Sunrise hour": "Aufgang Stunde", "Sunrise minute": "Aufgang Minute",
+  "Sunset hour": "Untergang Stunde", "Sunset minute": "Untergang Minute", "Temperature now": "Temperatur jetzt", "Temperature curve": "Temperaturkurve",
+  "Baro trend": "Baro-Tendenz", "Baro trend with hPa": "Baro-Tendenz mit hPa", "Umbrella (rain within 3 h)": "Schirm (Regen in 3 h)",
+  "Warning (thunder, gusts, frost)": "Warnung (Gewitter, Sturm, Frost)", "Weather now": "Wetter jetzt", "Moon phase": "Mondphase", "Stale data": "Daten veraltet",
+  "Pressure curve": "Luftdruckkurve", "Arrow up": "Pfeil hoch", "Arrow up-right": "Pfeil schräg hoch", "Arrow right": "Pfeil rechts", "Arrow down-right": "Pfeil schräg runter",
+  "Arrow down": "Pfeil runter", "Umbrella": "Schirm", "Snowflake": "Schneeflocke", "Lightning": "Blitz", "Windsock": "Windsack", "Cloud crossed out": "Wolke durchgestrichen",
+  "Sun": "Sonne", "Cloud": "Wolke", "Sun and cloud": "Sonne mit Wolke", "Rain cloud": "Regenwolke", "Snow cloud": "Schneewolke", "Fog": "Nebel", "New moon": "Neumond",
+  "Waxing crescent": "Mondsichel zunehmend", "First quarter": "Halbmond zunehmend", "Waxing gibbous": "Dreiviertelmond zunehmend", "Full moon": "Vollmond",
+  "Waning gibbous": "Dreiviertelmond abnehmend", "Last quarter": "Halbmond abnehmend", "Waning crescent": "Mondsichel abnehmend"
+};
+[1, 2, 4, 5].forEach(function (r) {
+  ["left", "right"].forEach(function (s) {
+    DE["Bar row " + r + " " + s] = "Balken Zeile " + r + " " + DE[s]; DE["Digits row " + r + " " + s] = "Ziffern Zeile " + r + " " + DE[s];
+  });
+});
+function T(s) { return sp === "de" && DE.hasOwnProperty(s) ? DE[s] : s; }
+// German: swap every text between two tags and the label/placeholder attributes; anything not in DE stays as it is.
+// Own preset names (<i class='pn'>) and the share code stay untouched
+function uebersetzen(h) {
+  if (sp !== "de") return h;
+  return h.replace(/(<[^<>]*>)([^<>]+)(?=<)/g, function (m, tag, t) {
+    var k = t.trim();
+    return DE.hasOwnProperty(k) && tag.indexOf("class='pn'") < 0 && tag.indexOf("<textarea") < 0 ? tag + t.split(k).join(DE[k]) : m;
+  })
+          .replace(/ (label|placeholder)='([^']*)'/g, function (m, a, t) { return DE.hasOwnProperty(t) ? " " + a + "='" + DE[t] + "'" : m; });
+}
+
+// Value in the view shown: at night the changed value, otherwise the day's
+function eff(gr, k) { return seite === "nacht" && z.nacht[gr].hasOwnProperty(k) ? z.nacht[gr][k] : z.tag[gr][k]; }
+function eigen(gr, k) { return seite === "nacht" && z.nacht[gr].hasOwnProperty(k); }
+function setz(gr, k, v) { if (seite === "nacht") z.nacht[gr][k] = v; else z.tag[gr][k] = v; }
+function marke(gr, k) {
+  if (seite !== "nacht") return "";
+  return eigen(gr, k) ? "<span class='x' data-reset='" + gr + ":" + k + "'>↺</span>" : "<small>as day</small>";
+}
+function blass(gr, k) { return seite === "nacht" && !eigen(gr, k) ? " w" : ""; }
+
+// ---------- Building blocks ----------
+function schalter(k, titel, info) {
+  return "<div class='o" + blass("optionen", k) + "' data-sw='" + k + "'><span>" + titel + (info ? "<small>" + info + "</small>" : "") + "</span>" +
+         marke("optionen", k) + "<span class='s" + (eff("optionen", k) ? " a" : "") + "'></span></div>";
+}
+function chips(k, werte, titel, info) {
+  var v = eff("optionen", k), h = "<div class='o" + blass("optionen", k) + "' style='flex-wrap:wrap;cursor:default'><span>" + titel +
+      (info ? "<small>" + info + "</small>" : "") + "</span>" + marke("optionen", k) + "<span class='chips'>";
+  werte.forEach(function (w, i) { h += "<b data-ch='" + k + ":" + i + "' class='" + ((v === true ? 1 : v === false ? 0 : v) === i ? "a" : "") + "'>" + w + "</b>"; });
+  return h + "</span></div>";
+}
+// Slider (since 0.15.0): while dragging only value and preview update, on release the whole page (↺ at night)
+function regler(k, titel, min, max) {
+  var v = eff("optionen", k);
+  return "<div class='o" + blass("optionen", k) + "' style='flex-wrap:wrap;cursor:default'><span>" + titel + "<small id='rw_" + k + "'>" + v + " px</small></span>" +
+         marke("optionen", k) + "<input type='range' data-rg='" + k + "' min='" + min + "' max='" + max + "' value='" + v +
+         "' style='width:100%;accent-color:#AA00AA;margin-top:6px'></div>";
+}
+function radios(k, liste, titel) {
+  var h = "<div class='u'>" + titel + "</div>";
+  liste.forEach(function (e, i) {
+    h += "<div class='o" + blass("optionen", k) + "' data-rd='" + k + ":" + i + "'><span class='r" + (eff("optionen", k) === i ? " a" : "") + "'></span><span>" +
+         e[0] + "<small>" + e[1] + "</small></span>" + (i === liste.length - 1 ? marke("optionen", k) : "") + "</div>";
+  });
+  return h;
+}
+function palette(k) {
+  if (offen !== k) return "";
+  var c = eff("farben", k), h = "<div class='p'>";
+  P.forEach(function (p) { h += "<span class='f" + (p === c ? " a" : "") + "' data-c='" + p + "' style='background:#" + p + "'></span>"; });
+  return h + "</div>";
+}
+function farbe(k) {
+  var c = eff("farben", k);
+  return "<div class='z" + blass("farben", k) + "' data-k='" + k + "'><span class='k' style='background:#" + c + "'></span>" + NAME[k] +
+         "<small>#" + c + "</small>" + marke("farben", k) + "</div>" + palette(k);
+}
+// Block: content, bar on/off, digit and bar colour in one card; at night one ↺ for all four values
+// Contents (0.22.0), numbers as enum W_… in main.c (fixed symbols from 64 since 0.23.0): numbers and "whole block" use both cells, symbols one
+var W_FEST = 64, GRUPPEN = [["Numbers", [1, 2, 3, 4, 5, 6, 7, 8, 9]], ["Whole block", [10, 18, 12]], ["Smart symbols", [11, 13, 14, 15, 16, 17]],
+                            ["Fixed symbols", IN.map(function (n, j) { return j; }).slice(W_FEST)]];
+function zelle(w) { return w === 0 || w === 11 || (w >= 13 && w <= 17) || w >= W_FEST; }
+function auswahl(k, v, nurZelle) {
+  var h = "<select data-in='" + k + "'><option value='0'" + (v === 0 ? " selected" : "") + ">" + IN[0] + "</option>";
+  GRUPPEN.forEach(function (gr) {
+    if (nurZelle && !zelle(gr[1][0])) return;
+    h += "<optgroup label='" + gr[0] + "'>";
+    gr[1].forEach(function (j) { h += "<option value='" + j + "'" + (v === j ? " selected" : "") + ">" + IN[j] + "</option>"; });
+    h += "</optgroup>";
+  });
+  return h + "</select>";
+}
+function block(i, titel) {
+  var b = BL[i], geaendert = eigen("optionen", b[0]) || eigen("optionen", b[1]) || eigen("farben", b[2]) || eigen("farben", b[3]) || eigen("optionen", b[5]);
+  var h = "<div class='blk" + (seite === "nacht" && !geaendert ? " w" : "") + "'><div class='t'>" + titel +
+          (seite === "nacht" ? (geaendert ? "<span class='x' data-reset='blk:" + i + "'>↺</span>" : " <small>as day</small>") : "") +
+          "</div><div class='zl'>" + auswahl(b[0], eff("optionen", b[0]), false);
+  h += "<span class='mini' data-sw='" + b[1] + "'><span class='s" + (eff("optionen", b[1]) ? " a" : "") + "'></span>Bar</span>" +
+       "<span class='mini' data-k='" + b[2] + "'><span class='k' style='background:#" + eff("farben", b[2]) + "'></span>Color</span>" +
+       (eff("optionen", b[1]) ? "<span class='mini' data-k='" + b[3] + "'><span class='k' style='background:#" + eff("farben", b[3]) + "'></span>Bar color</span>" : "") +
+       "</div>";
+  if (zelle(eff("optionen", b[0])))                 // symbol or empty: second symbol in the right cell (otherwise a single one is centred)
+    h += "<div class='zl' style='margin-top:6px'><small style='color:#888;min-width:80px'>Right cell</small>" + auswahl(b[5], eff("optionen", b[5]), true) + "</div>";
+  return h + "</div>" + palette(b[2]) + palette(b[3]);
+}
+
+// Preset row (p = own, v = stock); after "Load" the choice what for appears below (since 0.21.0, on the page instead of confirm())
+// Share (0.27.0): an own preset as a text code to copy; Import takes such a code back in as a new preset
+function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function psCode(p) { return JSON.stringify({ name: p.name, tag: p.tag, nacht: p.nacht }); }
+function themaSaeubern(t, nurDa) {                   // imported values: wrong type or unknown content → current day (nurDa: keep only what is there, for the night)
+  var e = { farben: {}, optionen: {} };
+  for (var k in z.tag.farben) {
+    var c = t && t.farben ? t.farben[k] : undefined;
+    if (typeof c === "string" && /^(00|55|AA|FF){3}$/i.test(c)) e.farben[k] = c.toUpperCase(); else if (!nurDa) e.farben[k] = z.tag.farben[k];
+  }
+  for (k in z.tag.optionen) {
+    var v = t && t.optionen ? t.optionen[k] : undefined, ok = typeof v === typeof z.tag.optionen[k];
+    if (ok && /^inhalt_/.test(k)) ok = v % 1 === 0 && typeof IN[v] === "string";
+    if (ok && /^zweit_/.test(k)) ok = v % 1 === 0 && typeof IN[v] === "string" && zelle(v);
+    if (ok) e.optionen[k] = v; else if (!nurDa) e.optionen[k] = z.tag.optionen[k];
+  }
+  return e;
+}
+function psZeile(p, art, i) {
+  var id = art + ":" + i, beide = p.nacht && p.nacht.an;
+  var h = "<div class='ps'><span>" + (art === "p" ? "<i class='pn'>" + esc(p.name) + "</i>" : esc(p.name)) + (beide ? "<small>day & night</small>" : "") + "</span>" +
+          "<b data-ps='wahl:" + id + "'>Load</b>" + (art === "p" ? "<b data-ps='teilen:" + i + "'>Share</b><b class='weg' data-ps='weg:" + i + "'>Delete</b>" : "") + "</div>";
+  if (art === "p" && teilen === i) h += "<div class='code'><textarea id='pscode' readonly>" + esc(psCode(p)) + "</textarea>" +
+    "<p class='info'>Copy the code and pass it on — it goes back in under Import.</p><b data-ps='kopieren'>Copy</b></div>";
+  if (wahl === id) h += "<div class='chips wahl'><b data-ps='auf:tag:" + id + "'>For day</b><b data-ps='auf:nacht:" + id + "'>For night</b>" +
+                        (beide ? "<b data-ps='auf:beide:" + id + "'>Day & night</b>" : "") + "<b data-ps='zu'>Cancel</b></div>";
+  return h;
+}
+
+// ---------- Sections ----------
+// Order and dependencies since 0.25.0: presets first; sub-options only appear when their switch is on
+var ABSCHNITTE = [
+  ["presets", "Presets", "yours and the stock ones", function () {
+    var h = (meldung ? "<p class='info' style='color:#FF55FF'>" + meldung + "</p>" : "") +
+            "<p class='info'>Load asks what for. “For day” leaves your night as it is; “For night” puts the preset’s day look on the night.</p>" +
+            "<div class='neu'><input id='psname' maxlength='40' placeholder='Name, e.g. Neon'><b data-ps='neu'>Save</b></div>" +
+            "<div class='neu'><input id='psimport' placeholder='Paste a preset code'><b data-ps='import'>Import</b></div>";
+    z.presets.forEach(function (p, i) { h += psZeile(p, "p", i); });
+    h += "<div class='u'>Stock presets</div>";            // built into the app, cannot be deleted (since 0.20.0)
+    (z.vorlagen || []).forEach(function (p, i) { h += psZeile(p, "v", i); });
+    return h;
+  }],
+  ["zahlen", "Rows & content", "numbers, symbols, curves, bars", function () {
+    var h = "<p class='info'>Every row except the time has two blocks: a number, a curve or symbols — two symbols per block. " +
+      "Smart symbols only show up when there’s a reason; the preview always shows them.</p>";
+    h += "<div class='u'>Row 1 · top</div>" + schalter("zeile1", "Show row 1", "above the date, sunrise by default");
+    if (eff("optionen", "zeile1")) h += block(0, "left") + block(1, "right");
+    h += "<div class='u'>Row 2</div>" + block(2, "left") + block(3, "right") +
+      "<div class='u'>Row 3 · time</div>" + farbe("ziffer") + schalter("zeitbalken", "Bar", "full width") +
+      (eff("optionen", "zeitbalken") ? farbe("balken") : "") +
+      "<div class='u'>Row 4</div>" + block(4, "left") + block(5, "right") +
+      "<div class='u'>Row 5 · bottom</div>" + schalter("zeile5", "Show row 5", "below row 4, sunset by default");
+    if (eff("optionen", "zeile5")) h += block(6, "left") + block(7, "right");
+    return h + "<div class='u'>All digits and symbols</div>" + farbe("rand") + farbe("kante");
+  }],
+  ["kurven", "Curves", "temperature and pressure: all colors", function () {
+    return "<p class='info'>Pick “Temperature curve” or “Pressure curve” as block content under “Rows & content”. The pressure curve shows the trend: " +
+      "the day’s range, at least 8 hPa tall — calm days stay flat.</p>" +
+      "<div class='u'>Temperature curve</div>" + KF.t.map(farbe).join("") + "<div class='u'>Pressure curve</div>" + KF.b.map(farbe).join("");
+  }],
+  ["regen", "Rain", "position, scale, color", function () {
+    var h = radios("regenlage", REGEN, "Position");
+    if (eff("optionen", "regenlage") === 2) return h;      // rain off: the rest has no effect
+    return h + "<div class='u'>Scale</div>" +
+      schalter("regen_rel", "Daily max = full height", "the wettest hour fills its column, the rest scales along; off = fixed scale") +
+      (eff("optionen", "regen_rel") ? chips("schwelle", SCHWELLEN, "Threshold (mm/h)", "less rain = no column, and it doesn’t count for the max") : "") +
+      schalter("regenvoll", "Full columns", "every rainy hour as a full column, whatever the amount") + farbe("regen");
+  }],
+  ["druck", "Pressure line", "in the background: line, width, position, color", function () {
+    var h = "<p class='info'>Pressure arrow and curve live under “Rows & content” as block contents.</p>" +
+      schalter("luftdruck", "Show pressure line", "985 hPa at the bottom, 1040 hPa at the top of the chosen zone");
+    if (!eff("optionen", "luftdruck")) return h;
+    return h + chips("druckvoll", ["dashed", "solid"], "Line", "dashed = one dash per hour") + chips("dicke_d", DICKEN, "Thickness") +
+      radios("drucklage", D, "Position") + farbe("druck");
+  }],
+  ["linien", "Time lines", "vertical and horizontal", function () {
+    var v = eff("optionen", "zeitmarke"), w = eff("optionen", "tageslinie");
+    var h = "<div class='u'>Vertical</div>" + schalter("zeitmarke", "Vertical time line", "a line at the current time");
+    if (v) h += chips("voll_v", ["dashed", "solid"], "Line") + regler("staerke_v", "Width", 1, 20) +
+      schalter("regen_vorn", "Rain cuts through", "rain columns sit in front of the line, but behind the bars") + farbe("jetzt");
+    h += "<div class='u'>Horizontal</div>" + schalter("tageslinie", "Horizontal time line", "height = time of day, like the sun position");
+    if (w) h += chips("voll_h", ["dashed", "solid"], "Line") + regler("staerke_h", "Width", 1, 20) + farbe("tlinie");
+    if (v || w) h += "<div class='u'>Frame</div>" + schalter("rahmen_z", "Frame", "1 px around the lines; a cross gets one shared outline") +
+      (eff("optionen", "rahmen_z") ? farbe("rahmen_z") : "");
+    return h;
+  }],
+  ["himmel", "Background", "color, columns", function () {
+    return farbe("grund") + schalter("saeulen", "Columns", "a subtle column per hour, rain or not; off = rain only") +
+      (eff("optionen", "saeulen") ? farbe("saeule") : "");
+  }],
+  // Sun position (own section since 0.26.0): night, twilight, day and the sunrise/sunset stripes one by one
+  ["sonne", "Sun position", "night, twilight, day, stripes", function () {
+    var h = schalter("sonne", "Sun position", "the time of day as background — 0:00 at the top, 24:00 at the bottom");
+    if (!eff("optionen", "sonne")) return h;
+    var tag = eff("optionen", "sonne_tag"), daem = eff("optionen", "sonne_daemmerung");
+    h += "<div class='u'>Night</div>" + schalter("sonne_nacht", "Area", "off = background color") + (eff("optionen", "sonne_nacht") ? farbe("s_nacht") : "") +
+      "<div class='u'>Twilight</div>" + schalter("sonne_daemmerung", "Show twilight", "civil twilight; off = night until sunrise and from sunset");
+    if (daem) h += schalter("verlauf", "As gradient", "from twilight 1 to 2; off = plain twilight 1") + farbe("s_d1") +
+      (eff("optionen", "verlauf") ? farbe("s_d2") : "");
+    h += "<div class='u'>Day</div>" + schalter("sonne_tag", "Area", "sunrise to sunset; off = background color") + (tag ? farbe("s_tag") : "") +
+      "<div class='u'>Sunrise & sunset stripes</div>" + schalter("sonne_streifen", "Stripes", "horizontal lines at the height of sunrise and sunset");
+    if (eff("optionen", "sonne_streifen")) h += chips("streifen_voll", ["dashed", "solid"], "Line") + regler("staerke_s", "Width", 1, 20) +
+      farbe("s_auf") + farbe("s_unter");
+    if (tag || daem) h += "<div class='u'>Rain</div>" +
+      schalter("regen_hinter", "Rain behind day & twilight", "areas that are on cover columns and rain; rain stays visible at night");
+    return h;
+  }]
+];
+
+function zeigen() {
+  var h = "<div class='chips sp'><b data-sp='en' class='" + (sp === "en" ? "a" : "") + "'>English</b><b data-sp='de' class='" + (sp === "de" ? "a" : "") + "'>Deutsch</b></div>" +
+          "<div class='reiter'><span data-tab='tag' class='" + (seite === "tag" ? "a" : "") + "'>Day</span>" +
+          "<span data-tab='nacht' class='" + (seite === "nacht" ? "a" : "") + "'>Night</span></div>";
+  if (seite === "nacht") {
+    h += "<div class='o' data-nm='1'><span>Night mode<small>from sunset to sunrise where you are</small></span><span class='s" +
+         (z.nacht.an ? " a" : "") + "'></span></div>" +
+         (z.nacht.an ? "" : "<p class='info' style='color:#FF55FF'>Night mode is off: what you set here kicks in once it’s on.</p>") +
+         "<p class='info'>The night borrows everything from the day. Changes here apply at night only; ↺ brings back the day value.</p>";
+  }
+  ABSCHNITTE.forEach(function (a) {
+    h += "<div class='sek'><div class='kopf' data-sek='" + a[0] + "'>" + a[1] + "<small>" + a[2] + "</small><b>" + (sek[a[0]] ? "▾" : "▸") + "</b></div>" +
+         (sek[a[0]] ? "<div class='inn'>" + a[3]() + "</div>" : "") + "</div>";
+  });
+  document.getElementById("inhalt").innerHTML = uebersetzen(h);
+  document.getElementById("hw").textContent = T("Preview with sample data, simplified font");
+  document.getElementById("ok").textContent = T("Save");
+  if (document.documentElement) document.documentElement.lang = sp;
+  knopf();
+  vorschau();
+}
+
+function kopie(o) { return JSON.parse(JSON.stringify(o)); }
+// Night as a complete look (day plus differences) and back as differences from a day
+function nachtBild(t, n) {
+  var e = { farben: {}, optionen: {} };
+  ["farben", "optionen"].forEach(function (gr) { for (var k in t[gr]) e[gr][k] = n[gr].hasOwnProperty(k) ? n[gr][k] : t[gr][k]; });
+  return e;
+}
+function abweichung(t, e) {
+  var n = { farben: {}, optionen: {} };
+  ["farben", "optionen"].forEach(function (gr) { for (var k in e[gr]) if (e[gr][k] !== t[gr][k]) n[gr][k] = kopie(e[gr][k]); });
+  return n;
+}
+// Load a preset: day (the night keeps its look — otherwise "as day" would drag it along), night (the preset's day look) or both
+function laden(p, ziel) {
+  var e, n;
+  if (ziel === "beide") { z.tag = kopie(p.tag); z.nacht = kopie(p.nacht); return; }
+  if (ziel === "tag") {
+    e = z.nacht.an ? nachtBild(z.tag, z.nacht) : null;
+    z.tag = kopie(p.tag);
+    if (e) { n = abweichung(z.tag, e); z.nacht.farben = n.farben; z.nacht.optionen = n.optionen; }
+    return;
+  }
+  n = abweichung(z.tag, p.tag); z.nacht.farben = n.farben; z.nacht.optionen = n.optionen; z.nacht.an = true;
+}
+var ZIEL = { tag: ["for day", "für den Tag"], nacht: ["for night", "für die Nacht"], beide: ["for day & night", "für Tag und Nacht"] };
+var A = ["data-sp", "data-reset", "data-c", "data-ps", "data-tab", "data-sek", "data-nm", "data-sw", "data-rd", "data-ch", "data-k"];
+document.getElementById("inhalt").onclick = function (ev) {
+  var t = ev.target, a = null, w = null;
+  if (t && (t.tagName === "SELECT" || t.tagName === "INPUT")) return;
+  while (t && t.getAttribute && !a) { for (var i = 0; i < A.length && !a; i++) if (t.getAttribute(A[i]) !== null) { a = A[i]; w = t.getAttribute(A[i]); } if (!a) t = t.parentNode; }
+  if (!a) return;
+  var kv = w.split(":");
+  meldung = ""; frage = false;
+  if (a === "data-sp") sp = w === "de" ? "de" : "en";
+  else if (a === "data-reset") {
+    if (kv[0] === "blk") { var bb = BL[parseInt(kv[1], 10)]; delete z.nacht.optionen[bb[0]]; delete z.nacht.optionen[bb[1]]; delete z.nacht.farben[bb[2]]; delete z.nacht.farben[bb[3]]; delete z.nacht.optionen[bb[5]]; }
+    else delete z.nacht[kv[0]][kv[1]];
+  }
+  else if (a === "data-c") { setz("farben", offen, w); offen = null; }
+  else if (a === "data-ps") {
+    var n = parseInt(kv[1], 10);
+    if (kv[0] === "neu") {
+      var name = (document.getElementById("psname").value || "").trim() || "Preset " + (z.presets.length + 1);
+      z.presets.push({ name: name.substring(0, 40), tag: kopie(z.tag), nacht: kopie(z.nacht) }); wahl = null;
+    } else if (kv[0] === "wahl") wahl = wahl === kv[1] + ":" + kv[2] ? null : kv[1] + ":" + kv[2];
+    else if (kv[0] === "zu") wahl = null;
+    else if (kv[0] === "auf") {                            // auf:<tag|nacht|beide>:<p|v>:<number>
+      var q = (kv[2] === "v" ? z.vorlagen || [] : z.presets)[parseInt(kv[3], 10)];
+      if (q && ZIEL[kv[1]]) {
+        laden(q, kv[1]); var qn = T(q.name).replace(/</g, "&lt;");
+        meldung = sp === "de" ? "„" + qn + "“ " + ZIEL[kv[1]][1] + " geladen" : "“" + qn + "” loaded " + ZIEL[kv[1]][0];
+        if (kv[1] !== "beide") seite = kv[1];              // the preview shows what was loaded
+      }
+      wahl = null; offen = null;
+    }
+    else if (kv[0] === "weg") { z.presets.splice(n, 1); wahl = null; teilen = null; }
+    else if (kv[0] === "teilen") { teilen = teilen === n ? null : n; wahl = null; }
+    else if (kv[0] === "kopieren") {
+      var ta = document.getElementById("pscode");
+      try { ta.select(); document.execCommand("copy"); meldung = T("Copied — paste it wherever you like."); } catch (e) { meldung = T("Select the code and copy it by hand."); }
+      return zeigenBehalten();
+    }
+    else if (kv[0] === "import") {
+      var q = null;
+      try { q = JSON.parse((document.getElementById("psimport").value || "").trim()); } catch (e) { q = null; }
+      if (q && q.tag && q.tag.farben && q.tag.optionen && z.presets.length < 20) {
+        var nm = String(q.name || "").trim().substring(0, 40) || T("Imported");
+        z.presets.push({ name: nm, tag: themaSaeubern(q.tag, false), nacht: { an: !!(q.nacht && q.nacht.an), farben: themaSaeubern(q.nacht, true).farben, optionen: themaSaeubern(q.nacht, true).optionen } });
+        meldung = sp === "de" ? "„" + esc(nm) + "“ importiert" : "“" + esc(nm) + "” imported";
+      } else meldung = T(z.presets.length >= 20 ? "20 presets is the limit — delete one first." : "That doesn’t look like a preset code.");
+      wahl = null;
+    }
+  }
+  else if (a === "data-tab") { seite = w; offen = null; }
+  else if (a === "data-sek") sek[w] = !sek[w];
+  else if (a === "data-nm") z.nacht.an = !z.nacht.an;
+  else if (a === "data-sw") setz("optionen", w, !eff("optionen", w));
+  else if (a === "data-rd") setz("optionen", kv[0], parseInt(kv[1], 10));
+  else if (a === "data-ch") setz("optionen", kv[0], typeof z.tag.optionen[kv[0]] === "boolean" ? kv[1] === "1" : parseInt(kv[1], 10));
+  else if (a === "data-k") offen = offen === w ? null : w;
+  zeigen();
+};
+function zeigenBehalten() {                        // after Copy: show the message, keep the code box and its selection
+  var ta = document.getElementById("pscode"), wert = ta && ta.value;
+  zeigen();
+  ta = document.getElementById("pscode"); if (ta && wert && ta.select) ta.select();
+}
+document.getElementById("inhalt").onchange = function (ev) {      // block content (select), slider released
+  var t = ev.target, k = t && t.getAttribute ? t.getAttribute("data-in") || t.getAttribute("data-rg") : null;
+  if (k) { setz("optionen", k, parseInt(t.value, 10)); zeigen(); }
+};
+document.getElementById("inhalt").oninput = function (ev) {       // slider while dragging
+  var t = ev.target, k = t && t.getAttribute ? t.getAttribute("data-rg") : null;
+  if (!k) return;
+  setz("optionen", k, parseInt(t.value, 10));
+  document.getElementById("rw_" + k).textContent = t.value + " px";
+  vorschau();
+};
+// Reset colours: label per tab, only after a second tap (asks on the page, no confirm())
+var frage = false;
+function knopf() { document.getElementById("std").textContent = T(frage ? "Sure? Tap again" : seite === "nacht" ? "Night colors like day" : "Reset all colors"); }
+document.getElementById("std").onclick = function () {
+  if (!frage) { frage = true; knopf(); return; }
+  frage = false;
+  if (seite === "nacht") z.nacht.farben = {};
+  else L.forEach(function (e) { z.tag.farben[e[0]] = e[2]; });
+  offen = null; zeigen();
+};
+document.getElementById("ok").onclick = function () {
+  document.location = "pebblejs://close#" + encodeURIComponent(JSON.stringify({ tag: z.tag, nacht: z.nacht, presets: z.presets, sprache: sp }));
+};
+
+// ---------- Preview of the view shown: same dimensions as main.c, digits in a system font ----------
+function vorschau() {
+  var x = document.getElementById("v").getContext("2d"), i, h;
+  var R = [0, 0, .2, .5, 1, .6, .1, 0, 0, 0, 0, .3, .8, 1.5, .4, 0, 0];
+  var PD = [1003, 1003.5, 1004, 1005, 1006.5, 1008, 1009, 1010, 1011, 1012, 1012.5, 1013, 1013.5, 1014, 1015, 1015.5, 1016];
+  function f(k) { return "#" + eff("farben", k); }
+  function o(k) { return eff("optionen", k); }
+  var datum = o("balken_2l") || o("balken_2r"), temp = o("balken_4l") || o("balken_4r"), unten = o("regenlage") === 1;
+  var oben0 = o("zeile1") && (o("balken_1l") || o("balken_1r")) ? 47 : 2;
+  var Z = [[oben0, datum ? 42 : 88], [2, datum ? 42 : 45], [temp ? 185 : 182, 226], [temp ? 185 : 139, 226]][o("drucklage")];   // like druck_y()
+  x.fillStyle = f("grund"); x.fillRect(0, 0, 200, 228);
+  var SO = [450, 485, 1095, 1130], B4 = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];   // sample sun 07:30 / 08:05 / 18:15 / 18:50
+  function himmelZeile(y) {                           // like himmel_zeile() in main.c: areas can be off, without twilight the night lasts until sunrise
+    var m = Math.floor((y * 1440 + 720) / 228), tag = m >= SO[1] && m < SO[2];   // 0.27.0: 00:00 at the top
+    var nacht = o("sonne_daemmerung") ? m < SO[0] || m >= SO[3] : !tag;
+    x.fillStyle = f(nacht ? (o("sonne_nacht") ? "s_nacht" : "grund") : tag ? (o("sonne_tag") ? "s_tag" : "grund") : "s_d1"); x.fillRect(0, y, 200, 1);
+    if (!nacht && !tag && o("verlauf")) {
+      var nu = m < SO[1] ? m - SO[0] : SO[3] - m, de = m < SO[1] ? SO[1] - SO[0] : SO[3] - SO[2];
+      x.fillStyle = f("s_d2");
+      for (var px = 0; px < 200; px++) if (2 * nu * 16 > (2 * B4[y % 4][px % 4] + 1) * de) x.fillRect(px, y, 1, 1);
+    }
+  }
+  if (o("sonne")) for (var y = 0; y < 228; y++) himmelZeile(y);
+  var SW = [1, 2, 3, 5, 10][o("schwelle")], RMAX = 0;
+  R.forEach(function (r) { if (r * 10 >= SW && r * 10 > RMAX) RMAX = r * 10; });
+  var dy = [], dd = o("dicke_d") + 1, RH = [];
+  for (i = 0; i < 17; i++) {
+    if (o("saeulen")) { x.fillStyle = f("saeule"); x.fillRect(12 * i, 0, 6, 228); }
+    var hm = unten ? 45 : 228;                        // like regen_px(): relative (threshold) or fixed scale
+    if (o("regenlage") === 2 || R[i] <= 0) h = 0;
+    else if (o("regen_rel")) h = R[i] * 10 < SW || !RMAX ? 0 : o("regenvoll") ? hm : Math.max(2, Math.round(hm * R[i] * 10 / RMAX));
+    else if (o("regenvoll")) h = hm;
+    else if (unten) h = Math.min(45, Math.round(45 * Math.sqrt(R[i] / 4)));
+    else h = Math.min(228, Math.round(91 * Math.sqrt(R[i])));
+    x.fillStyle = f("regen"); x.fillRect(12 * i, 228 - h, 6, h); RH[i] = h;
+    dy.push(Math.round(Z[1] - (PD[i] - 985) / 55 * (Z[1] - Z[0])));
+  }
+  function tagZeile(y) {                              // rain behind day and twilight (0.25.1): only the night stays behind
+    var m = Math.floor((y * 1440 + 720) / 228);
+    if (!o("sonne") || !o("regen_hinter")) return false;
+    return m >= SO[1] && m < SO[2] ? o("sonne_tag") : o("sonne_daemmerung") && m >= SO[0] && m < SO[3];
+  }
+  for (i = 0; i < 228; i++) if (tagZeile(i)) himmelZeile(i);
+  if (o("luftdruck") && !o("druckvoll")) for (i = 0; i < 17; i++) { x.fillStyle = f("druck"); x.fillRect(12 * i, dy[i], 6, dd); }
+  if (o("luftdruck") && o("druckvoll")) {
+    x.strokeStyle = f("druck"); x.lineWidth = dd; x.beginPath(); x.moveTo(0, dy[0] + dd / 2);
+    for (i = 0; i < 17; i++) x.lineTo(12 * i + 3, dy[i] + dd / 2);
+    x.lineTo(200, dy[16] + dd / 2); x.stroke();
+  }
+  var Y0 = [0, 45, 137, 183], Y1 = [45, 91, 183, 228], TY = [0, 46, 138, 184], AN = [o("zeile1"), true, true, o("zeile5")];
+  if (o("zeitbalken")) { x.fillStyle = f("balken"); x.fillRect(0, 91, 200, 46); }
+  for (var rr = 0; rr < 4; rr++) for (var sei = 0; sei < 2; sei++)
+    if (AN[rr] && o(BL[2 * rr + sei][1])) { x.fillStyle = f(BL[2 * rr + sei][3]); x.fillRect(100 * sei, Y0[rr], 100, Y1[rr] - Y0[rr]); }
+  // time lines above the bars, right behind the digits (like main.c since 0.16.0)
+  // like main.c since 0.19.0: collect the pieces, frame around all of them first, then the faces (cross = one outline)
+  if (o("sonne") && o("sonne_streifen")) [[SO[1], "s_auf"], [SO[2], "s_unter"]].forEach(function (st) {   // sun stripes (0.26.0)
+    var ys = Math.round(st[0] * 228 / 1440) - ((o("staerke_s") - 1) >> 1);
+    x.fillStyle = f(st[1]);
+    if (o("streifen_voll")) x.fillRect(0, ys, 200, o("staerke_s")); else for (var q = 0; q < 200; q += 8) x.fillRect(q, ys, 4, o("staerke_s"));
+  });
+  var LR = [], nh = 0, l0 = 76 - ((o("staerke_v") - 1) >> 1), yl = 100 - ((o("staerke_h") - 1) >> 1);   // sample time 10:33 (row 100 since 0.27.0)
+  if (o("tageslinie")) { if (o("voll_h")) LR.push([0, yl, 200, o("staerke_h")]); else for (i = 0; i < 200; i += 8) LR.push([i, yl, 4, o("staerke_h")]); }
+  nh = LR.length;
+  if (o("zeitmarke")) { if (o("voll_v")) LR.push([l0, 0, o("staerke_v"), 228]); else for (i = 0; i < 228; i += 8) LR.push([l0, i, o("staerke_v"), 4]); }
+  if (o("rahmen_z")) { x.fillStyle = f("rahmen_z"); LR.forEach(function (r) { x.fillRect(r[0] - 1, r[1] - 1, r[2] + 2, r[3] + 2); }); }
+  LR.forEach(function (r, k) { x.fillStyle = f(k < nh ? "tlinie" : "jetzt"); x.fillRect(r[0], r[1], r[2], r[3]); });
+  if (o("zeitmarke") && o("regen_vorn")) for (i = 0; i < 17; i++) {   // rain cuts through (simplified: bars are not left out)
+    var rb = o("rahmen_z") ? 1 : 0, a0 = Math.max(l0 - rb, 12 * i), a1 = Math.min(l0 + o("staerke_v") + rb, 12 * i + 6);
+    if (a1 > a0 && RH[i]) for (var yy = 228 - RH[i]; yy < 228; yy++) if (!tagZeile(yy)) { x.fillStyle = f("regen"); x.fillRect(a0, yy, a1 - a0, 1); }
+  }
+  var WERT = ["  ", "21", "10", "07", "16", "08", "05", "18", "15", "11"];   // sample: 21 Oct, 7–16 °C, sun 08:05–18:15, now 11 °C
+  x.font = "bold 44px monospace"; x.textBaseline = "top";
+  function zf(txt, n, ty, farbk) {
+    var sp = [0, 54, 107, 161];
+    for (var k = 4; k >= 1; k--) { x.fillStyle = f("kante"); x.fillText(txt, sp[n] + k, ty + k); }
+    x.lineWidth = 3; x.strokeStyle = f("rand"); x.strokeText(txt, sp[n], ty);
+    x.fillStyle = f(farbk); x.fillText(txt, sp[n], ty);
+  }
+  // symbols and curve (since 0.22.0): masks from symbole.js, edge like the digits, no outline; curve with sample temperatures
+  function maske(hex, x0, y0, farbe) {               // 34 rows of 5 bytes, bit 7 = left column
+    x.fillStyle = farbe;
+    for (var r = 0; r < 34; r++) {
+      var s = -1;
+      for (var q = 0; q <= 34; q++) {
+        var an = q < 34 && (parseInt(hex.substr(r * 10 + (q >> 3) * 2, 2), 16) >> (7 - (q & 7)) & 1);
+        if (an && s < 0) s = q;
+        if (!an && s >= 0) { x.fillRect(x0 + s, y0 + r, q - s, 1); s = -1; }
+      }
+    }
+  }
+  function sym(n, x0, y0, fk) {                      // n = symbol number as on the watch
+    ((SY && SY.teile[n]) || []).forEach(function (t) {   // t = [dark, mask]; dark: flat in the edge colour (moon disc)
+      if (t[0]) { maske(t[1], x0, y0, f("kante")); return; }
+      for (var k = 4; k >= 1; k--) maske(t[1], x0 + k, y0 + k, f("kante"));
+      maske(t[1], x0, y0, f(fk));
+    });
+  }
+  // smart symbols as samples: baro slightly up, umbrella, lightning, sun with cloud, crescent, crossed-out cloud
+  var BEISPIEL = { 11: 1, 12: 1, 13: 5, 14: 7, 15: 12, 16: 17, 17: 9 };
+  function symVon(w) { return w >= W_FEST ? w - W_FEST : BEISPIEL[w]; }
+  // curves as on the watch: outline, edge, line; temperature low to high, pressure at least 8 hPa tall (sample data)
+  function kurveV(x0, y0, art) {
+    var W = art === "b" ? PD : [4, 3, 3, 4, 5, 7, 8, 10, 9, 8, 10, 11, 12, 11, 10, 9, 8], F = KF[art], PK = [], k;
+    var lo = Math.min.apply(null, W), hi = Math.max.apply(null, W);
+    if (art === "b" && hi - lo < 8) { lo = (lo + hi) / 2 - 4; hi = lo + 8; }
+    W.forEach(function (t, q) { PK.push([x0 + 3 + q * 82 / 16, y0 + 3 + 28 * (hi - t) / (hi - lo || 1)]); });
+    function strich(dk, farbe, b) {
+      x.strokeStyle = farbe; x.lineWidth = b; x.lineJoin = "round"; x.lineCap = "round"; x.beginPath();
+      PK.forEach(function (p, q) { if (q) x.lineTo(p[0] + dk, p[1] + dk); else x.moveTo(p[0] + dk, p[1] + dk); });
+      x.stroke();
+    }
+    for (k = 0; k <= 4; k++) strich(k, f(F[2]), 8);
+    for (k = 4; k >= 1; k--) strich(k, f(F[1]), 6);
+    strich(0, f(F[0]), 6);
+    var px = PK[6][0] + .55 * (PK[7][0] - PK[6][0]), py = PK[6][1] + .55 * (PK[7][1] - PK[6][1]);   // sample time 10:33
+    for (k = 0; k <= 4; k++) { x.fillStyle = f(F[2]); x.fillRect(px - 5 + k, py - 5 + k, 10, 10); }
+    for (k = 4; k >= 1; k--) { x.fillStyle = f(F[4]); x.fillRect(px - 4 + k, py - 4 + k, 8, 8); }
+    x.fillStyle = f(F[3]); x.fillRect(px - 4, py - 4, 8, 8);
+  }
+  function bild(w, w2, sei, y0, fk) {
+    var x0 = [0, 107][sei];
+    if (w === 10 || w === 18) kurveV(x0, y0, w === 10 ? "t" : "b");
+    else if (w === 12) { sym(symVon(w), x0, y0, fk); zf("2", 2 * sei + 1, y0 - 3, fk); }
+    else if (!w2) { if (w) sym(symVon(w), x0 + 27, y0, fk); }   // a single one: centred in the block
+    else { if (w) sym(symVon(w), x0, y0, fk); sym(symVon(w2), x0 + 54, y0, fk); }
+  }
+  "1033".split("").forEach(function (c, n) { zf(c, n, 92, "ziffer"); });
+  for (rr = 0; rr < 4; rr++) {
+    if (!AN[rr]) continue;
+    for (sei = 0; sei < 2; sei++) {
+      var bk = BL[2 * rr + sei], w = o(bk[0]);
+      if (w === 10 || w === 12 || w === 18 || zelle(w)) { bild(w, o(bk[5]), sei, TY[rr] + 3, bk[2]); continue; }
+      var t2 = WERT[w];
+      zf(t2[0], 2 * sei, TY[rr], bk[2]); zf(t2[1], 2 * sei + 1, TY[rr], bk[2]);
+    }
+  }
+}
+zeigen();
+</script>
+</body></html>
