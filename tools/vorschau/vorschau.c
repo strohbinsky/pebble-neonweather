@@ -24,7 +24,8 @@ static const struct { const char *name; int key; bool liste; } SCHLUESSEL[] = {
   { "SCHALTER", MESSAGE_KEY_SCHALTER, false }, { "SCHALTER_N", MESSAGE_KEY_SCHALTER_N, false },
   { "TEXTE", MESSAGE_KEY_TEXTE, true }, { "TEXTE_N", MESSAGE_KEY_TEXTE_N, true },   // 0.28.0
   { "NACHTMODUS", MESSAGE_KEY_NACHTMODUS, false }, { "TEST", MESSAGE_KEY_TEST, false },   // TEST 1: the other theme (0.29.0)
-  { "GLOBAL", MESSAGE_KEY_GLOBAL, false } };   // 0.30.0: time format, weekday language
+  { "GLOBAL", MESSAGE_KEY_GLOBAL, false },   // 0.30.0: time format, weekday language
+  { "EBENEN", MESSAGE_KEY_EBENEN, true }, { "EBENEN_N", MESSAGE_KEY_EBENEN_N, true } };   // 0.33.0: layer order
 static void uhr_laden(const char *pfad) {
   static char zeile[4096];
   char name[32];
@@ -85,7 +86,8 @@ int main(int argc, char **argv) {
   if (getenv("BLOECKE")) { char *e = getenv("BLOECKE"); for (int i = 0; i < 8 && *e; i++) { s_th[0].block[i] = strtol(e, &e, 10); if (*e == ',') e++; } }
   if (getenv("ZELLEN")) { char *e = getenv("ZELLEN"); for (int i = 0; i < 8 && *e; i++) { s_th[0].zweit[i] = strtol(e, &e, 10); if (*e == ',') e++; } }
   if (getenv("OHNE_SAEULEN")) s_th[0].saeulen = false;
-  if (getenv("REGEN_HINTER")) s_th[0].regen_hinter = true;
+  if (getenv("REGEN_HINTER")) { static const uint8_t E[E_ANZAHL] = { E_SAEULEN, E_REGEN, E_HIMMEL, E_DRUCK, E_BALKEN, E_STREIFEN, E_LINIEN, E_ZEIT, E_BLOECKE };
+    memcpy(s_th[0].ebenen, E, E_ANZAHL); }   // rain behind the day: since 0.33.0 the layer "day and twilight" above the rain
   if (getenv("OHNE_TAG")) s_th[0].s_tag = false;
   if (getenv("OHNE_DAEMMERUNG")) s_th[0].s_daem = false;
   if (getenv("OHNE_NACHT")) s_th[0].s_nacht = false;

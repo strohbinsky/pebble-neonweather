@@ -27,6 +27,8 @@ h1{font-size:20px;margin:0 0 10px}
 .u{color:#aaa;font-size:13px;text-transform:uppercase;letter-spacing:.05em;margin:12px 4px 6px}
 .z,.o{display:flex;align-items:center;gap:12px;background:#262626;border-radius:10px;padding:10px 12px;margin-bottom:6px;font-size:16px;cursor:pointer}
 .z small{margin-left:auto;color:#888;font-family:monospace}.o small{display:block;color:#888;font-size:13px}
+.pf{margin-left:auto;display:flex;gap:6px}.pf b{width:38px;height:34px;line-height:34px;text-align:center;border-radius:8px;background:#333;font-weight:normal;cursor:pointer}
+.pf b.lz{background:none;cursor:default}.eb{padding:6px 12px}
 .w{opacity:.45}.x{margin-left:8px;color:#FF55FF;font-size:20px;padding:0 4px}
 .k{width:40px;height:24px;border-radius:4px;flex:none;border:1px solid #666;display:inline-block}.k.e{border:2px dashed #999}
 .o .r{width:22px;height:22px;border-radius:50%;border:2px solid #888;flex:none}.o .r.a{background:#AA00AA;border-color:#FF55FF}
@@ -160,7 +162,7 @@ var DE = {
   "Bottom, narrow": "Unten schmal", "between the temperature and the edge": "zwischen Temperatur und Rand", "the whole lower half, above the rain": "ganze untere Hälfte, über dem Regen",
   "Time lines": "Zeitlinien", "vertical and horizontal": "senkrecht und waagerecht", "Vertical": "Senkrecht", "Horizontal": "Waagerecht",
   "Vertical time line": "Senkrechte Zeitlinie", "a line at the current time": "Strich bei der aktuellen Uhrzeit",
-  "Rain cuts through": "Regen sticht durch", "rain columns sit in front of the line, but behind the bars": "Regensäulen liegen vor der Linie, aber hinter den Balken",
+  "Rain cuts through": "Regen sticht durch", "rain columns sit in front of the line; what lies between rain and lines keeps covering it": "Regensäulen liegen vor der Linie; was zwischen Regen und Linien liegt, deckt ihn weiter ab",
   "Horizontal time line": "Waagerechte Zeitlinie", "height = time of day, like the sun position": "Höhe = Tageszeit, wie beim Sonnenstand",
   "Frame": "Rahmen", "1 px around the lines; a cross gets one shared outline": "1 px um die Linien; bei einem Kreuz eine gemeinsame Kontur",
   "Background": "Hintergrund", "color, columns": "Farbe, Säulen", "Columns": "Säulen", "a subtle column per hour, rain or not; off = rain only": "leise Säule je Stunde, auch ohne Regen; aus = nur Regen",
@@ -171,7 +173,14 @@ var DE = {
   "As gradient": "Als Verlauf", "from twilight 1 to 2; off = plain twilight 1": "von Dämmerung 1 zu 2; aus = einfarbig in Dämmerung 1",
   "sunrise to sunset; off = background color": "Sonnenaufgang bis -untergang; aus = Hintergrundfarbe",
   "Sunrise & sunset stripes": "Streifen bei Auf- und Untergang", "Stripes": "Streifen", "horizontal lines at the height of sunrise and sunset": "waagerecht auf Höhe der Uhrzeit von Sonnenauf- und -untergang",
-  "Rain behind day & twilight": "Regen hinter Tag und Dämmerung", "areas that are on cover columns and rain; rain stays visible at night": "eingeschaltete Flächen liegen vor Säulen und Regen; in der Nacht ist Regen zu sehen",
+  "Rain behind day & twilight: under “Layers”, move “Day & twilight” above “Rain”.": "Regen hinter Tag und Dämmerung: unter „Ebenen“ „Tag und Dämmerung“ über „Regen“ schieben.",
+  "Layers": "Ebenen", "what lies in front of what": "was vor was liegt", "Top = in front. ▲ ▼ move a layer one step; the preview shows it right away.": "Oben = vorn. ▲ ▼ schieben eine Ebene um eine Stufe; die Vorschau zeigt es sofort.",
+  "Order": "Reihenfolge", "Day & twilight": "Tag und Dämmerung", "sun position areas — right above the background they change nothing": "Flächen des Sonnenstands — direkt über dem Hintergrund ändern sie nichts",
+  "a subtle column per hour": "leise Säule je Stunde", "rain columns": "Regensäulen", "the day’s pressure": "Luftdruck des Tages",
+  "Bars": "Balken", "time bar and block bars": "Balken der Uhrzeit und der Blöcke", "Sun stripes": "Sonnenstreifen", "lines at sunrise and sunset": "Linien bei Auf- und Untergang",
+  "vertical and horizontal, with frame": "senkrecht und waagerecht, mit Rahmen", "Time": "Uhrzeit", "row 3": "Zeile 3", "Blocks": "Blöcke",
+  "rows 1, 2, 4, 5: digits, symbols, curves, text": "Zeilen 1, 2, 4, 5: Ziffern, Symbole, Kurven, Text", "off": "aus",
+  "color or the night — always at the back": "Farbe oder Nacht — immer ganz hinten", "Default order": "Standard-Reihenfolge", "the order up to 0.32.0": "die Reihenfolge bis 0.32.0",
   "Pressure (baro)": "Luftdruck (Baro)", "Time digits": "Ziffern Uhrzeit", "Digit outline": "Ziffernrand", "3D edge": "3D-Kante", "Time bar": "Balken Uhrzeit",
   "Twilight 1": "Dämmerung 1", "Twilight 2": "Dämmerung 2", "Time line frame": "Rahmen der Zeitlinien", "Edge": "Kante", "Dot “now”": "Punkt „jetzt“", "Outline": "Rand",
   "Dot edge": "Kante des Punkts", "Sunrise": "Aufgang", "Sunset": "Untergang",
@@ -184,7 +193,7 @@ var DE = {
   "Sun": "Sonne", "Cloud": "Wolke", "Sun and cloud": "Sonne mit Wolke", "Rain cloud": "Regenwolke", "Snow cloud": "Schneewolke", "Fog": "Nebel", "New moon": "Neumond",
   "Waxing crescent": "Mondsichel zunehmend", "First quarter": "Halbmond zunehmend", "Waxing gibbous": "Dreiviertelmond zunehmend", "Full moon": "Vollmond",
   "Waning gibbous": "Dreiviertelmond abnehmend", "Last quarter": "Halbmond abnehmend", "Waning crescent": "Mondsichel abnehmend",
-  "Free text": "Freier Text", "Your text": "Dein Text", "3D": "3D", "3D edge time": "3D-Kante Uhrzeit",
+  "Free text": "Freier Text", "Your text": "Dein Text", "3D": "3D", "3D edge time": "3D-Kante Uhrzeit", "Outline time": "Rand Uhrzeit", "like digit outline": "wie Ziffernrand",
   "One character above each digit: 2 per block, 4 in the left block when the right one is empty. A–Z, 0–9, ÄÖÜ, - ! ? . , : ' + / = ° ♥ ( ) % _ — spaces move the text along.":
     "Ein Zeichen über jeder Ziffer: 2 je Block, 4 im linken Block, wenn der rechte leer ist. A–Z, 0–9, ÄÖÜ, - ! ? . , : ' + / = ° ♥ ( ) % _ — Leerzeichen rücken den Text weiter.",
   "Symbol colors": "Symbolfarben", "like 3D edge": "wie 3D-Kante", "block color": "Blockfarbe",
@@ -198,8 +207,8 @@ var DE = {
   // 0.30.0
   "Save & show night for 30 s": "Speichern, 30 s Nacht zeigen", "Save & show day for 30 s": "Speichern, 30 s Tag zeigen",
   "Digits & symbols": "Ziffern und Symbole", "main color, 3D edge, symbol colors": "Hauptfarbe, 3D-Kante, Symbolfarben", "Main color": "Hauptfarbe",
-  "Main color and 3D edge apply to every digit, letter and symbol. Blocks, the time and every symbol family can have their own — empty = inherit.":
-    "Hauptfarbe und 3D-Kante gelten für alle Ziffern, Buchstaben und Symbole. Blöcke, Uhrzeit und jede Symbolfamilie können eigene haben — leer = übernehmen.",
+  "Main color, 3D edge and digit outline apply to every digit, letter and symbol. Blocks, the time and every symbol family can have their own color and 3D edge, blocks and the time their own outline too — empty = inherit.":
+    "Hauptfarbe, 3D-Kante und Ziffernrand gelten für alle Ziffern, Buchstaben und Symbole. Blöcke, Uhrzeit und jede Symbolfamilie können eigene Farbe und 3D-Kante haben, Blöcke und Uhrzeit auch einen eigenen Rand — leer = übernehmen.",
   "Each symbol family can have its own color and 3D edge, wherever it shows up — the moon of “Weather now” at night too. Empty = the block’s.":
     "Jede Symbolfamilie kann eigene Farbe und 3D-Kante haben, wo immer sie erscheint — auch der Mond von „Wetter jetzt“ nachts. Leer = wie der Block.",
   "main color": "Hauptfarbe", "block 3D edge": "3D-Kante des Blocks", "Status: stale data, battery, phone": "Status: Daten veraltet, Akku, Handy",
@@ -222,6 +231,7 @@ var DE = {
   ["left", "right"].forEach(function (s) {
     DE["Bar row " + r + " " + s] = "Balken Zeile " + r + " " + DE[s]; DE["Digits row " + r + " " + s] = "Ziffern Zeile " + r + " " + DE[s];
     DE["3D edge row " + r + " " + s] = "3D-Kante Zeile " + r + " " + DE[s];
+    DE["Outline row " + r + " " + s] = "Rand Zeile " + r + " " + DE[s];
   });
 });
 function T(s) { return sp === "de" && DE.hasOwnProperty(s) ? DE[s] : s; }
@@ -272,12 +282,12 @@ function radios(k, liste, titel) {
   });
   return h;
 }
-// Inherited colour (0.28.0): empty; the 3D edge per block shows the common 3D edge, a symbol family the block colour (no swatch);
+// Inherited colour (0.28.0): empty; the 3D edge per block shows the common 3D edge (the outline per block the common outline, 0.32.0), a symbol family the block colour (no swatch);
 // since 0.30.0 digit colours show the main colour, the 3D edge of a family "block 3D edge" (no swatch)
-function erbText(k) { return /^kante_/.test(k) ? "like 3D edge" : /^sk_/.test(k) ? "block 3D edge" : ZIF[k] ? "main color" : "block color"; }
+function erbText(k) { return /^kante_/.test(k) ? "like 3D edge" : /^rand_/.test(k) ? "like digit outline" : /^sk_/.test(k) ? "block 3D edge" : ZIF[k] ? "main color" : "block color"; }
 function farbHex(k) {
   var c = eff("farben", k);
-  return c !== "" ? c : /^kante_/.test(k) ? eff("farben", "kante") : ZIF[k] ? eff("farben", "haupt") : null;
+  return c !== "" ? c : /^kante_/.test(k) ? eff("farben", "kante") : /^rand_/.test(k) ? eff("farben", "rand") : ZIF[k] ? eff("farben", "haupt") : null;
 }
 function feld(k) { var c = eff("farben", k), h = farbHex(k); return "<span class='k" + (c === "" ? " e" : "") + "' style='background:" + (h ? "#" + h : "transparent") + "'></span>"; }
 function palette(k) {
@@ -310,20 +320,21 @@ function auswahl(k, v, nurZelle) {
   });
   return h + "</select>";
 }
-// Since 0.28.0 with a 3D edge per block (empty = the common one) and the free text. A curve block shows the curve's line and
-// edge instead (they apply wherever the curve shows up)
+// Since 0.28.0 with a 3D edge per block (empty = the common one) and the free text, since 0.32.0 with an outline per block (empty = the
+// common digit outline). A curve block shows the curve's line, edge and outline instead (they apply wherever the curve shows up)
 function attr(s) { return esc(s).replace(/'/g, "&#39;"); }
 function block(i, titel) {
   var b = BL[i], w = eff("optionen", b[0]), kv = w === 10 ? KF.t : w === 18 ? KF.b : null;
   var geaendert = eigen("optionen", b[0]) || eigen("optionen", b[1]) || eigen("farben", b[2]) || eigen("farben", b[3]) || eigen("optionen", b[5]) ||
-                  eigen("farben", b[6]) || eigen("optionen", b[7]);
-  var fk = kv ? kv[0] : b[2], kk = kv ? kv[1] : b[6];
+                  eigen("farben", b[6]) || eigen("optionen", b[7]) || eigen("farben", b[8]);
+  var fk = kv ? kv[0] : b[2], kk = kv ? kv[1] : b[6], rk = kv ? kv[2] : b[8];
   var h = "<div class='blk" + (seite === "nacht" && !geaendert ? " w" : "") + "'><div class='t'>" + titel +
           (seite === "nacht" ? (geaendert ? "<span class='x' data-reset='blk:" + i + "'>↺</span>" : " <small>as day</small>") : "") +
-          "</div><div class='zl'>" + auswahl(b[0], w, false);
+          "</div><div class='zl'>" + auswahl(b[0], w, false) + "</div><div class='zl' style='margin-top:8px'>";   // 0.32.0: swatches in a row of their own
   h += "<span class='mini' data-sw='" + b[1] + "'><span class='s" + (eff("optionen", b[1]) ? " a" : "") + "'></span>Bar</span>" +
        "<span class='mini' data-k='" + fk + "'>" + feld(fk) + (kv ? "Line" : "Color") + "</span>" +
        "<span class='mini' data-k='" + kk + "'>" + feld(kk) + "3D</span>" +
+       "<span class='mini' data-k='" + rk + "'>" + feld(rk) + "Outline</span>" +
        (eff("optionen", b[1]) ? "<span class='mini' data-k='" + b[3] + "'>" + feld(b[3]) + "Bar color</span>" : "") +
        "</div>";
   if (kv) h += "<p class='info' style='margin:6px 2px 0'>Curve colors apply wherever the curve shows up.</p>";
@@ -331,7 +342,7 @@ function block(i, titel) {
     "<p class='info' style='margin:6px 2px 0'>One character above each digit: 2 per block, 4 in the left block when the right one is empty. A–Z, 0–9, ÄÖÜ, - ! ? . , : ' + / = ° ♥ ( ) % _ — spaces move the text along.</p>";
   if (zelle(w))                                     // symbol or empty: second symbol in the right cell (otherwise a single one is centred)
     h += "<div class='zl' style='margin-top:6px'><small style='color:#888;min-width:80px'>Right cell</small>" + auswahl(b[5], eff("optionen", b[5]), true) + "</div>";
-  return h + "</div>" + palette(fk) + palette(kk) + palette(b[3]);
+  return h + "</div>" + palette(fk) + palette(kk) + palette(rk) + palette(b[3]);
 }
 
 // Time format (0.30.0): one setting for day and night, kept on the phone like the language — no ↺
@@ -372,6 +383,8 @@ function themaSaeubern(t, nurDa) {
     if (k === "achse" && typeof v === "number" && !(v >= 0 && v <= 2 && v % 1 === 0)) v = undefined;
     if (k === "staerke_d" && v === undefined && t && t.optionen && typeof t.optionen.dicke_d === "number") v = t.optionen.dicke_d + 1;   // code until 0.30.0: index 0–3
     if (/^staerke_/.test(k) && typeof v === "number" && !(v >= 1 && v <= 20 && v % 1 === 0)) v = undefined;
+    if (k === "ebenen" && v === undefined && t && t.optionen && typeof t.optionen.regen_hinter === "boolean") v = t.optionen.regen_hinter ? "120345678" : EB_STD;   // until 0.32.0
+    if (k === "ebenen" && typeof v === "string" && (v.length !== 9 || v.split("").sort().join("") !== EB_STD)) v = undefined;
     ok = typeof v === typeof STD.optionen[k];
     if (ok && /^inhalt_/.test(k)) ok = v % 1 === 0 && typeof IN[v] === "string";
     if (ok && /^zweit_/.test(k)) ok = v % 1 === 0 && typeof IN[v] === "string" && zelle(v);
@@ -393,6 +406,32 @@ function psZeile(p, art, i) {
 
 // ---------- Sections ----------
 // Order and dependencies since 0.25.0: presets first; sub-options only appear when their switch is on
+// Layers (0.33.0): number = enum E_… in main.c = character in the option "ebenen" (back to front); name, what it is
+var EB = [["Day & twilight", "sun position areas — right above the background they change nothing"], ["Columns", "a subtle column per hour"],
+          ["Rain", "rain columns"], ["Pressure line", "the day’s pressure"], ["Bars", "time bar and block bars"],
+          ["Sun stripes", "lines at sunrise and sunset"], ["Time lines", "vertical and horizontal, with frame"], ["Time", "row 3"],
+          ["Blocks", "rows 1, 2, 4, 5: digits, symbols, curves, text"]], EB_STD = "012345678";
+function ebenenPos(n) { return (eff("optionen", "ebenen") || EB_STD).indexOf(String(n)); }
+function ebeneAn(n) {                              // layer shows something with the current settings (otherwise faded, still movable)
+  var o = function (k) { return eff("optionen", k); };
+  return [o("sonne") && (o("sonne_tag") || o("sonne_daemmerung")), o("saeulen"), o("regenlage") !== 2, o("luftdruck"),
+          o("zeitbalken") || BL.some(function (b) { return o(b[1]); }), o("sonne") && o("sonne_streifen"), o("zeitmarke") || o("tageslinie"),
+          true, true][n];
+}
+function ebenen() {                                // top = front; ▲ one step to the front, ▼ one to the back
+  var e = eff("optionen", "ebenen") || EB_STD, h = "<p class='info'>Top = in front. ▲ ▼ move a layer one step; the preview shows it right away.</p>";
+  if (seite === "nacht") h += "<div class='o" + blass("optionen", "ebenen") + "' style='cursor:default'><span>Order</span>" + marke("optionen", "ebenen") + "</div>";
+  for (var i = e.length - 1; i >= 0; i--) {
+    var n = +e[i], an = ebeneAn(n);
+    h += "<div class='o eb" + blass("optionen", "ebenen") + (an ? "" : " w") + "' style='cursor:default'><span>" + EB[n][0] +
+         "<small>" + (an ? EB[n][1] : "off") + "</small></span><span class='pf'>" +
+         (i < e.length - 1 ? "<b data-eb='" + i + ":1'>▲</b>" : "<b class='lz'></b>") + (i > 0 ? "<b data-eb='" + i + ":-1'>▼</b>" : "<b class='lz'></b>") +
+         "</span></div>";
+  }
+  h += "<div class='o w' style='cursor:default'><span>Background<small>color or the night — always at the back</small></span></div>";
+  if (seite === "tag" && e !== EB_STD) h += "<div class='o' data-eb='std'><span>Default order<small>the order up to 0.32.0</small></span></div>";
+  return h;
+}
 var ABSCHNITTE = [
   ["presets", "Presets", "yours and the stock ones", function () {
     var h = (meldung ? "<p class='info' style='color:#FF55FF'>" + meldung + "</p>" : "") +
@@ -410,7 +449,7 @@ var ABSCHNITTE = [
     h += "<div class='u'>Row 1 · top</div>" + schalter("zeile1", "Show row 1", "above the date, sunrise by default");
     if (eff("optionen", "zeile1")) h += block(0, "left") + block(1, "right");
     h += "<div class='u'>Row 2</div>" + block(2, "left") + block(3, "right") +
-      "<div class='u'>Row 3 · time</div>" + farbe("ziffer") + farbe("kante_zeit") + schalter("zeitbalken", "Bar", "full width") +
+      "<div class='u'>Row 3 · time</div>" + farbe("ziffer") + farbe("kante_zeit") + farbe("rand_zeit") + schalter("zeitbalken", "Bar", "full width") +
       (eff("optionen", "zeitbalken") ? farbe("balken") : "") + zeitformat() +
       "<div class='u'>Row 4</div>" + block(4, "left") + block(5, "right") +
       "<div class='u'>Row 5 · bottom</div>" + schalter("zeile5", "Show row 5", "below row 4, sunset by default");
@@ -419,7 +458,7 @@ var ABSCHNITTE = [
   }],
   // 0.30.0: main colour, 3D edge, outline and the symbol families with colour and 3D edge (until 0.29.0 at the end of "Rows & content")
   ["ziffern", "Digits & symbols", "main color, 3D edge, symbol colors", function () {
-    var h = "<p class='info'>Main color and 3D edge apply to every digit, letter and symbol. Blocks, the time and every symbol family can have their own — empty = inherit.</p>" +
+    var h = "<p class='info'>Main color, 3D edge and digit outline apply to every digit, letter and symbol. Blocks, the time and every symbol family can have their own color and 3D edge, blocks and the time their own outline too — empty = inherit.</p>" +
       farbe("haupt") + farbe("kante") + farbe("rand") +
       "<div class='u'>Symbol colors</div><p class='info'>Each symbol family can have its own color and 3D edge, wherever it shows up — the moon of “Weather now” at night too. Empty = the block’s.</p>";
     FAM.forEach(function (f, i) { h += famKarte(i); });
@@ -450,7 +489,8 @@ var ABSCHNITTE = [
     var v = eff("optionen", "zeitmarke"), w = eff("optionen", "tageslinie");
     var h = "<div class='u'>Vertical</div>" + schalter("zeitmarke", "Vertical time line", "a line at the current time");
     if (v) h += chips("voll_v", ["dashed", "solid"], "Line") + regler("staerke_v", "Width", 1, 20) +
-      schalter("regen_vorn", "Rain cuts through", "rain columns sit in front of the line, but behind the bars") + farbe("jetzt");
+      (ebenenPos(2) < ebenenPos(6) ? schalter("regen_vorn", "Rain cuts through", "rain columns sit in front of the line; what lies between rain and lines keeps covering it") : "") +
+      farbe("jetzt");
     h += "<div class='u'>Horizontal</div>" + schalter("tageslinie", "Horizontal time line", "height = time of day, like the sun position");
     if (w) h += chips("voll_h", ["dashed", "solid"], "Line") + regler("staerke_h", "Width", 1, 20) + farbe("tlinie");
     if (v || w) h += "<div class='u'>Frame</div>" + schalter("rahmen_z", "Frame", "1 px around the lines; a cross gets one shared outline") +
@@ -475,9 +515,10 @@ var ABSCHNITTE = [
     if (eff("optionen", "sonne_streifen")) h += chips("streifen_voll", ["dashed", "solid"], "Line") + regler("staerke_s", "Width", 1, 20) +
       farbe("s_auf") + farbe("s_unter");
     if (tag || daem) h += "<div class='u'>Rain</div>" +
-      schalter("regen_hinter", "Rain behind day & twilight", "areas that are on cover columns and rain; rain stays visible at night");
+      "<p class='info'>Rain behind day & twilight: under “Layers”, move “Day & twilight” above “Rain”.</p>";
     return h;
-  }]
+  }],
+  ["ebenen", "Layers", "what lies in front of what", ebenen]   // 0.33.0
 ];
 
 function zeigen() {
@@ -559,7 +600,7 @@ function laden(p, ziel) {
   n = abweichung(z.tag, p.tag); z.nacht.farben = n.farben; z.nacht.optionen = n.optionen; z.nacht.an = true;
 }
 var ZIEL = { tag: ["for day", "für den Tag"], nacht: ["for night", "für die Nacht"], beide: ["for day & night", "für Tag und Nacht"] };
-var A = ["data-sp", "data-reset", "data-c", "data-ps", "data-tab", "data-sek", "data-nm", "data-gl", "data-sw", "data-rd", "data-ch", "data-k"];
+var A = ["data-eb", "data-sp", "data-reset", "data-c", "data-ps", "data-tab", "data-sek", "data-nm", "data-gl", "data-sw", "data-rd", "data-ch", "data-k"];
 document.getElementById("inhalt").onclick = function (ev) {
   var t = ev.target, a = null, w = null;
   if (t && (t.tagName === "SELECT" || t.tagName === "INPUT")) return;
@@ -569,7 +610,7 @@ document.getElementById("inhalt").onclick = function (ev) {
   meldung = ""; frage = false;
   if (a === "data-sp") sp = w === "de" ? "de" : "en";
   else if (a === "data-reset") {
-    if (kv[0] === "blk") { var bb = BL[parseInt(kv[1], 10)]; delete z.nacht.optionen[bb[0]]; delete z.nacht.optionen[bb[1]]; delete z.nacht.farben[bb[2]]; delete z.nacht.farben[bb[3]]; delete z.nacht.optionen[bb[5]]; delete z.nacht.farben[bb[6]]; delete z.nacht.optionen[bb[7]]; }
+    if (kv[0] === "blk") { var bb = BL[parseInt(kv[1], 10)]; delete z.nacht.optionen[bb[0]]; delete z.nacht.optionen[bb[1]]; delete z.nacht.farben[bb[2]]; delete z.nacht.farben[bb[3]]; delete z.nacht.optionen[bb[5]]; delete z.nacht.farben[bb[6]]; delete z.nacht.optionen[bb[7]]; delete z.nacht.farben[bb[8]]; }
     else if (kv[0] === "fam") { var fm = FAM[parseInt(kv[1], 10)]; delete z.nacht.farben[fm[0]]; delete z.nacht.farben[fm[1]]; }
     else delete z.nacht[kv[0]][kv[1]];
   }
@@ -616,6 +657,11 @@ document.getElementById("inhalt").onclick = function (ev) {
   else if (a === "data-rd") setz("optionen", kv[0], parseInt(kv[1], 10));
   else if (a === "data-ch") setz("optionen", kv[0], typeof z.tag.optionen[kv[0]] === "boolean" ? kv[1] === "1" : parseInt(kv[1], 10));
   else if (a === "data-k") offen = offen === w ? null : w;
+  else if (a === "data-eb") {                       // layers (0.33.0): swap with the neighbour, or back to the default
+    var eo = (eff("optionen", "ebenen") || EB_STD).split(""), ep = parseInt(kv[0], 10), eq = ep + parseInt(kv[1], 10);
+    if (w === "std") setz("optionen", "ebenen", EB_STD);
+    else if (eq >= 0 && eq < eo.length) { var et = eo[ep]; eo[ep] = eo[eq]; eo[eq] = et; setz("optionen", "ebenen", eo.join("")); }
+  }
   zeigen();
 };
 function zeigenBehalten() {                        // after Copy: show the message, keep the code box and its selection
@@ -723,60 +769,89 @@ function vorschau() {
   for (i = 0; i < AN; i++) { var rv = RA[i]; if (rv * 10 >= SW && rv * 10 > RMAX) RMAX = rv * 10; }
   var dy = [], dd = o("staerke_d"), dm = (dd - 1) >> 1, RH = [];   // 0.31.0: 1–20 px, centred on the value like main.c
   for (i = 0; i < AN; i++) {
-    var r = RA[i], sx = AX + AP * i;
-    if (o("saeulen")) { x.fillStyle = f("saeule"); x.fillRect(sx, 0, AB, 228); }
+    var r = RA[i];
     var hm = unten ? 45 : 228;                        // like regen_px(): relative (threshold) or fixed scale
     if (o("regenlage") === 2 || r <= 0) h = 0;
     else if (o("regen_rel")) h = r * 10 < SW || !RMAX ? 0 : o("regenvoll") ? hm : Math.max(2, Math.round(hm * r * 10 / RMAX));
     else if (o("regenvoll")) h = hm;
     else if (unten) h = Math.min(45, Math.round(45 * Math.sqrt(r / 4)));
     else h = Math.min(228, Math.round(91 * Math.sqrt(r)));
-    x.fillStyle = f("regen"); x.fillRect(sx, 228 - h, AB, h); RH[i] = h;
+    RH[i] = h;
     dy.push(Math.round(Z[1] - (PA[i] - 985) / 55 * (Z[1] - Z[0])));
   }
-  function tagZeile(y) {                              // rain behind day and twilight (0.25.1): only the night stays behind
+  function tagZeile(y) {                              // rows of the layer "day & twilight" like tag_zeile() in main.c: the night stays behind
     var m = Math.floor((y * 1440 + 720) / 228);
-    if (!o("sonne") || !o("regen_hinter")) return false;
+    if (!o("sonne")) return false;
     return m >= SO[1] && m < SO[2] ? o("sonne_tag") : o("sonne_daemmerung") && m >= SO[0] && m < SO[3];
   }
-  for (i = 0; i < 228; i++) if (tagZeile(i)) himmelZeile(i);
-  if (o("luftdruck") && !o("druckvoll")) for (i = 0; i < AN; i++) { x.fillStyle = f("druck"); x.fillRect(AX + AP * i, dy[i] - dm, AB, dd); }
-  if (o("luftdruck") && o("druckvoll")) {
-    x.strokeStyle = f("druck"); x.lineWidth = dd; x.beginPath(); x.moveTo(0, dy[0] - dm + dd / 2);
-    for (i = 0; i < AN; i++) x.lineTo(AX + AP * i + (AB >> 1), dy[i] - dm + dd / 2);
-    x.lineTo(200, dy[AN - 1] - dm + dd / 2); x.stroke();
-  }
+  // Layers (0.33.0): one drawing function per layer (index = layer number, enum E_… in main.c), called below in the order of the
+  // theme, back to front; p = position. The background above stays at the very back
+  var EO = o("ebenen") || EB_STD, EBF = [];
+  function pos(n) { return EO.indexOf(String(n)); }
+  function zwischen(n, a, b) { return pos(n) > pos(a) && pos(n) < pos(b); }
+  EBF[0] = function (p) { if (p > 0) for (var q = 0; q < 228; q++) if (tagZeile(q)) himmelZeile(q); };   // right above the background: nothing new
+  EBF[1] = function () { if (o("saeulen")) for (var q = 0; q < AN; q++) { x.fillStyle = f("saeule"); x.fillRect(AX + AP * q, 0, AB, 228); } };
+  EBF[2] = function () { x.fillStyle = f("regen"); for (var q = 0; q < AN; q++) if (RH[q]) x.fillRect(AX + AP * q, 228 - RH[q], AB, RH[q]); };
+  EBF[3] = function () {
+    var i;
+    if (o("luftdruck") && !o("druckvoll")) for (i = 0; i < AN; i++) { x.fillStyle = f("druck"); x.fillRect(AX + AP * i, dy[i] - dm, AB, dd); }
+    if (o("luftdruck") && o("druckvoll")) {
+      x.strokeStyle = f("druck"); x.lineWidth = dd; x.beginPath(); x.moveTo(0, dy[0] - dm + dd / 2);
+      for (i = 0; i < AN; i++) x.lineTo(AX + AP * i + (AB >> 1), dy[i] - dm + dd / 2);
+      x.lineTo(200, dy[AN - 1] - dm + dd / 2); x.stroke();
+    }
+  };
   var Y0 = [0, 45, 137, 183], Y1 = [45, 91, 183, 228], TY = [0, 46, 138, 184], ZAN = [o("zeile1"), true, true, o("zeile5")];
-  if (o("zeitbalken")) { x.fillStyle = f("balken"); x.fillRect(0, 91, 200, 46); }
-  for (var rr = 0; rr < 4; rr++) for (var sei = 0; sei < 2; sei++)
-    if (ZAN[rr] && o(BL[2 * rr + sei][1])) { x.fillStyle = f(BL[2 * rr + sei][3]); x.fillRect(100 * sei, Y0[rr], 100, Y1[rr] - Y0[rr]); }
-  // time lines above the bars, right behind the digits (like main.c since 0.16.0)
-  // like main.c since 0.19.0: collect the pieces, frame around all of them first, then the faces (cross = one outline)
-  if (o("sonne") && o("sonne_streifen")) [[SO[1], "s_auf"], [SO[2], "s_unter"]].forEach(function (st) {   // sun stripes (0.26.0)
-    var ys = Math.round(st[0] * 228 / 1440) - ((o("staerke_s") - 1) >> 1);
-    x.fillStyle = f(st[1]);
-    if (o("streifen_voll")) x.fillRect(0, ys, 200, o("staerke_s")); else for (var q = 0; q < 200; q += 8) x.fillRect(q, ys, 4, o("staerke_s"));
-  });
-  var xj = Math.floor(AX + JR * AP / 60), senk = o("zeitmarke") && (A24 || (JR >= 0 && xj <= 198));   // like main.c: outside the axis no vertical line
-  var LR = [], nh = 0, l0 = xj - ((o("staerke_v") - 1) >> 1), yl = Math.floor(JM * 228 / 1440) - ((o("staerke_h") - 1) >> 1);
-  if (o("tageslinie")) { if (o("voll_h")) LR.push([0, yl, 200, o("staerke_h")]); else for (i = 0; i < 200; i += 8) LR.push([i, yl, 4, o("staerke_h")]); }
-  nh = LR.length;
-  if (senk) { if (o("voll_v")) LR.push([l0, 0, o("staerke_v"), 228]); else for (i = 0; i < 228; i += 8) LR.push([l0, i, o("staerke_v"), 4]); }
-  if (o("rahmen_z")) { x.fillStyle = f("rahmen_z"); LR.forEach(function (r) { x.fillRect(r[0] - 1, r[1] - 1, r[2] + 2, r[3] + 2); }); }
-  LR.forEach(function (r, k) { x.fillStyle = f(k < nh ? "tlinie" : "jetzt"); x.fillRect(r[0], r[1], r[2], r[3]); });
-  if (senk && o("regen_vorn")) for (i = 0; i < AN; i++) {   // rain cuts through (simplified: bars are not left out)
-    var rb = o("rahmen_z") ? 1 : 0, a0 = Math.max(l0 - rb, AX + AP * i), a1 = Math.min(l0 + o("staerke_v") + rb, AX + AP * i + AB);
-    if (a1 > a0 && RH[i]) for (var yy = 228 - RH[i]; yy < 228; yy++) if (!tagZeile(yy)) { x.fillStyle = f("regen"); x.fillRect(a0, yy, a1 - a0, 1); }
+  EBF[4] = function () {
+    if (o("zeitbalken")) { x.fillStyle = f("balken"); x.fillRect(0, 91, 200, 46); }
+    for (var rr = 0; rr < 4; rr++) for (var sei = 0; sei < 2; sei++)
+      if (ZAN[rr] && o(BL[2 * rr + sei][1])) { x.fillStyle = f(BL[2 * rr + sei][3]); x.fillRect(100 * sei, Y0[rr], 100, Y1[rr] - Y0[rr]); }
+  };
+  function unterBalken(px, py) {                      // like unter_balken() in main.c
+    var s2 = px >= 100 ? 1 : 0;
+    if (o("zeitbalken") && py >= 91 && py < 137) return true;
+    if (py < 45) return ZAN[0] && o(BL[s2][1]);
+    if (py < 91) return o(BL[2 + s2][1]);
+    if (py < 137) return false;
+    if (py < 183) return o(BL[4 + s2][1]);
+    return ZAN[3] && o(BL[6 + s2][1]);
   }
+  EBF[5] = function () {
+    if (o("sonne") && o("sonne_streifen")) [[SO[1], "s_auf"], [SO[2], "s_unter"]].forEach(function (st) {   // sun stripes (0.26.0)
+      var ys = Math.round(st[0] * 228 / 1440) - ((o("staerke_s") - 1) >> 1);
+      x.fillStyle = f(st[1]);
+      if (o("streifen_voll")) x.fillRect(0, ys, 200, o("staerke_s")); else for (var q = 0; q < 200; q += 8) x.fillRect(q, ys, 4, o("staerke_s"));
+    });
+  };
+  // like main.c since 0.19.0: collect the pieces, frame around all of them first, then the faces (cross = one outline)
+  EBF[6] = function (p) {
+    var i, xj = Math.floor(AX + JR * AP / 60), senk = o("zeitmarke") && (A24 || (JR >= 0 && xj <= 198));   // like main.c: outside the axis no vertical line
+    var LR = [], nh = 0, l0 = xj - ((o("staerke_v") - 1) >> 1), yl = Math.floor(JM * 228 / 1440) - ((o("staerke_h") - 1) >> 1);
+    if (o("tageslinie")) { if (o("voll_h")) LR.push([0, yl, 200, o("staerke_h")]); else for (i = 0; i < 200; i += 8) LR.push([i, yl, 4, o("staerke_h")]); }
+    nh = LR.length;
+    if (senk) { if (o("voll_v")) LR.push([l0, 0, o("staerke_v"), 228]); else for (i = 0; i < 228; i += 8) LR.push([l0, i, o("staerke_v"), 4]); }
+    if (o("rahmen_z")) { x.fillStyle = f("rahmen_z"); LR.forEach(function (r) { x.fillRect(r[0] - 1, r[1] - 1, r[2] + 2, r[3] + 2); }); }
+    LR.forEach(function (r, k) { x.fillStyle = f(k < nh ? "tlinie" : "jetzt"); x.fillRect(r[0], r[1], r[2], r[3]); });
+    // rain cuts through like main.c (0.33.0): only when the rain lies behind the lines; bars and day in between keep covering it
+    if (!senk || !o("regen_vorn") || pos(2) > p || (o("saeulen") && zwischen(1, 2, 6))) return;
+    var ob = zwischen(4, 2, 6), oh = zwischen(0, 2, 6);
+    x.fillStyle = f("regen");
+    for (i = 0; i < AN; i++) {
+      var rb = o("rahmen_z") ? 1 : 0, a0 = Math.max(l0 - rb, AX + AP * i), a1 = Math.min(l0 + o("staerke_v") + rb, AX + AP * i + AB);
+      if (a1 > a0 && RH[i]) for (var yy = 228 - RH[i]; yy < 228; yy++)
+        for (var xx = a0; xx < a1; xx++) if (!(ob && unterBalken(xx, yy)) && !(oh && tagZeile(yy))) x.fillRect(xx, yy, 1, 1);
+    }
+  };
   // sample numbers: 21 Oct (a Wednesday), sun 08:05–18:15, battery 80 %, 8,432 steps, heart rate 64, weather from the sample kind
   var H12 = glob.zeitformat === 2;
   var WERT = { 1: "21", 2: "10", 5: "08", 6: "05", 7: H12 ? "06" : "18", 8: "15", 20: sp === "de" ? "MI" : "WE", 21: "80", 22: "08", 23: "64" };
   for (var wk in bw.w) WERT[wk] = bw.w[wk];
   x.font = "bold 44px monospace"; x.textBaseline = "top";
+  var rnd = f("rand");                                 // outline of the block being drawn (0.32.0), like s_rand in main.c
   function zf(txt, n, ty, face, kante) {               // face and edge as colour strings (0.28.0: edge per block)
     var sp = [0, 54, 107, 161];
     for (var k = 4; k >= 1; k--) { x.fillStyle = kante; x.fillText(txt, sp[n] + k, ty + k); }
-    x.lineWidth = 3; x.strokeStyle = f("rand"); x.strokeText(txt, sp[n], ty);
+    x.lineWidth = 3; x.strokeStyle = rnd; x.strokeText(txt, sp[n], ty);
     x.fillStyle = face; x.fillText(txt, sp[n], ty);
   }
   // free text like buchstabe() in main.c: one character per digit cell, rectangles on the grid of the digit segments;
@@ -788,7 +863,7 @@ function vorschau() {
     if (!gl) return;
     for (var zz = 0; zz < 5 + gl[1]; zz++) for (var ss = 0; ss < 5; ss++)
       if (Math.floor(gl[0] / Math.pow(2, zz * 5 + ss)) % 2) re.push([[0, 54, 107, 161][n] + RX[ss], y0 + RY[gl[1]][zz], RX[ss + 1] - RX[ss], RY[gl[1]][zz + 1] - RY[gl[1]][zz]]);
-    x.fillStyle = f("rand");
+    x.fillStyle = rnd;
     for (k = 0; k <= 4; k++) re.forEach(function (r) { x.fillRect(r[0] + k - 1, r[1] + k - 1, r[2] + 2, r[3] + 2); });
     x.fillStyle = kante;
     for (k = 4; k >= 1; k--) re.forEach(function (r) { x.fillRect(r[0] + k, r[1] + k, r[2], r[3]); });
@@ -849,23 +924,31 @@ function vorschau() {
     else { if (w) sym(symVon(w), x0, y0, face, kante); sym(symVon(w2), x0 + 54, y0, face, kante); }
   }
   var hh = Math.floor(JM / 60), uz = (H12 ? ((hh + 11) % 12 + 1 < 10 ? " " : "") + ((hh + 11) % 12 + 1) : ("0" + hh).slice(-2)) + ("0" + JM % 60).slice(-2);
-  var haupt = f("haupt"), kante0 = f("kante");       // main colour (0.30.0): time and blocks inherit it
-  uz.split("").forEach(function (c, n) { if (c !== " ") zf(c, n, 92, fe("ziffer", haupt), fe("kante_zeit", kante0)); });
-  for (rr = 0; rr < 4; rr++) {
-    if (!ZAN[rr]) continue;
-    for (sei = 0; sei < 2; sei++) {
-      var bk = BL[2 * rr + sei], w = o(bk[0]), kante = fe(bk[6], kante0), face = fe(bk[2], haupt), nb = BL[2 * rr + 1];
-      var frei = sei === 0 && o(nb[0]) === 0 && o(nb[5]) === 0;
-      if (w === W_TEXT) {                             // free text (0.28.0): one character per cell, the left block runs into an empty right one
-        var tc = textCodes(o(bk[7])), nz = frei ? 4 : 2;
-        for (var ci = 0; ci < nz && ci < tc.length; ci++) zeichenV(tc[ci], 2 * sei + ci, TY[rr] + 3, face, kante);
-        continue;
+  var haupt = f("haupt"), kante0 = f("kante"), rand0 = f("rand");   // main colour (0.30.0): time and blocks inherit it
+  EBF[7] = function () {
+    rnd = fe("rand_zeit", rand0);
+    uz.split("").forEach(function (c, n) { if (c !== " ") zf(c, n, 92, fe("ziffer", haupt), fe("kante_zeit", kante0)); });
+  };
+  EBF[8] = function () {
+    var rr, sei;
+    for (rr = 0; rr < 4; rr++) {
+      if (!ZAN[rr]) continue;
+      for (sei = 0; sei < 2; sei++) {
+        var bk = BL[2 * rr + sei], w = o(bk[0]), kante = fe(bk[6], kante0), face = fe(bk[2], haupt), nb = BL[2 * rr + 1];
+        rnd = fe(bk[8], rand0);
+        var frei = sei === 0 && o(nb[0]) === 0 && o(nb[5]) === 0;
+        if (w === W_TEXT) {                             // free text (0.28.0): one character per cell, the left block runs into an empty right one
+          var tc = textCodes(o(bk[7])), nz = frei ? 4 : 2;
+          for (var ci = 0; ci < nz && ci < tc.length; ci++) zeichenV(tc[ci], 2 * sei + ci, TY[rr] + 3, face, kante);
+          continue;
+        }
+        if (w === 10 || w === 12 || w === 18 || zelle(w)) { bild(w, o(bk[5]), sei, TY[rr] + 3, face, kante); continue; }
+        var t2 = w === 22 && frei ? "8432" : WERT[w] || "--";   // steps exact when the right block is empty
+        for (ci = 0; ci < t2.length; ci++) zeichenV(t2.charCodeAt(ci), 2 * sei + ci, TY[rr] + 3, face, kante);
       }
-      if (w === 10 || w === 12 || w === 18 || zelle(w)) { bild(w, o(bk[5]), sei, TY[rr] + 3, face, kante); continue; }
-      var t2 = w === 22 && frei ? "8432" : WERT[w] || "--";   // steps exact when the right block is empty
-      for (ci = 0; ci < t2.length; ci++) zeichenV(t2.charCodeAt(ci), 2 * sei + ci, TY[rr] + 3, face, kante);
     }
-  }
+  };
+  EO.split("").forEach(function (c, p) { EBF[+c](p); });   // back to front
   var vm = document.getElementById("vm"), mc = vm && vm.getContext ? vm.getContext("2d") : null;   // small preview at the top (0.30.0)
   if (mc && mc.drawImage) { mc.drawImage(document.getElementById("v"), 0, 0); }
 }

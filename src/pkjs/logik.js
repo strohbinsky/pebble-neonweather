@@ -164,7 +164,11 @@ var FARBEN = [['grund', 'Background', '000000'], ['saeule', 'Columns', '550055']
               ['haupt', 'Main color', 'FFFFFF'],
               ['sk_pfeil', '3D edge baro arrows', ''], ['sk_schirm', '3D edge umbrella', ''], ['sk_warnung', '3D edge warnings', ''],
               ['sk_wetter', '3D edge weather', ''], ['sk_mond', '3D edge moon', ''], ['sk_alt', '3D edge status', ''],
-              ['sf_freude', 'Heart, smiley, star …', ''], ['sk_freude', '3D edge heart, smiley …', '']];
+              ['sf_freude', 'Heart, smiley, star …', ''], ['sk_freude', '3D edge heart, smiley …', ''],
+              // 0.32.0: digit outline per block and of the time (empty = the common digit outline)
+              ['rand_1l', 'Outline row 1 left', ''], ['rand_1r', 'Outline row 1 right', ''], ['rand_2l', 'Outline row 2 left', ''],
+              ['rand_2r', 'Outline row 2 right', ''], ['rand_4l', 'Outline row 4 left', ''], ['rand_4r', 'Outline row 4 right', ''],
+              ['rand_5l', 'Outline row 5 left', ''], ['rand_5r', 'Outline row 5 right', ''], ['rand_zeit', 'Outline time', '']];
 function farbeGueltig(hex) { return typeof hex === 'string' && /^(00|55|AA|FF){3}$/i.test(hex); }   // only the 64 Pebble colours
 var ERBEN = {};                                    // colours that may be empty (inherit), since 0.28.0
 FARBEN.forEach(function (e) { if (e[2] === '') ERBEN[e[0]] = true; });
@@ -194,12 +198,12 @@ var DRUCKLAGEN = [['Top', 'the whole upper half, behind the date too'], ['Top, n
                   ['Bottom, narrow', 'between the temperature and the edge'], ['Bottom', 'the whole lower half, above the rain']];
 // Bars (one by one since 0.9.0): name, bit on the watch, default. Stored values from 0.8.0 (datumbalken, tempbalken) are taken over
 // Blocks (0.14.0): position → [content key, bar key, digit colour, bar colour, default content, key of the second symbol,
-// 3D edge colour, text key]. Order = block 0–7 on the watch. Second symbol (0.22.0): right cell when the block shows a symbol or nothing.
-// 3D edge per block and free text since 0.28.0
-var BLOECKE = [['inhalt_1l', 'balken_1l', 'z_auf', 'auf_b', 5, 'zweit_1l', 'kante_1l', 'text_1l'], ['inhalt_1r', 'balken_1r', 'z_auf2', 'auf_b2', 6, 'zweit_1r', 'kante_1r', 'text_1r'],
-               ['inhalt_2l', 'balken_2l', 'z_tag', 'tag_b', 1, 'zweit_2l', 'kante_2l', 'text_2l'], ['inhalt_2r', 'balken_2r', 'z_monat', 'monat_b', 2, 'zweit_2r', 'kante_2r', 'text_2r'],
-               ['inhalt_4l', 'balken_4l', 'z_min', 'min_b', 3, 'zweit_4l', 'kante_4l', 'text_4l'], ['inhalt_4r', 'balken_4r', 'z_max', 'max_b', 4, 'zweit_4r', 'kante_4r', 'text_4r'],
-               ['inhalt_5l', 'balken_5l', 'z_unter', 'unter_b', 7, 'zweit_5l', 'kante_5l', 'text_5l'], ['inhalt_5r', 'balken_5r', 'z_unter2', 'unter_b2', 8, 'zweit_5r', 'kante_5r', 'text_5r']];
+// 3D edge colour, text key, outline colour]. Order = block 0–7 on the watch. Second symbol (0.22.0): right cell when the block shows a
+// symbol or nothing. 3D edge per block and free text since 0.28.0, outline per block since 0.32.0
+var BLOECKE = [['inhalt_1l', 'balken_1l', 'z_auf', 'auf_b', 5, 'zweit_1l', 'kante_1l', 'text_1l', 'rand_1l'], ['inhalt_1r', 'balken_1r', 'z_auf2', 'auf_b2', 6, 'zweit_1r', 'kante_1r', 'text_1r', 'rand_1r'],
+               ['inhalt_2l', 'balken_2l', 'z_tag', 'tag_b', 1, 'zweit_2l', 'kante_2l', 'text_2l', 'rand_2l'], ['inhalt_2r', 'balken_2r', 'z_monat', 'monat_b', 2, 'zweit_2r', 'kante_2r', 'text_2r', 'rand_2r'],
+               ['inhalt_4l', 'balken_4l', 'z_min', 'min_b', 3, 'zweit_4l', 'kante_4l', 'text_4l', 'rand_4l'], ['inhalt_4r', 'balken_4r', 'z_max', 'max_b', 4, 'zweit_4r', 'kante_4r', 'text_4r', 'rand_4r'],
+               ['inhalt_5l', 'balken_5l', 'z_unter', 'unter_b', 7, 'zweit_5l', 'kante_5l', 'text_5l', 'rand_5l'], ['inhalt_5r', 'balken_5r', 'z_unter2', 'unter_b2', 8, 'zweit_5r', 'kante_5r', 'text_5r', 'rand_5r']];
 var W_TEXT = 19, TEXT_MAX = 4;                    // free text as block content (0.28.0): one character per digit cell, 4 per row
 var INHALTE = ['empty', 'Day', 'Month', 'Low', 'High', 'Sunrise hour', 'Sunrise minute', 'Sunset hour', 'Sunset minute',
                // since 0.22.0 (order = enum W_… in main.c): smart symbols only show up when there is a reason
@@ -225,7 +229,17 @@ var BALKEN = [['balken_1l', 1, false], ['balken_1r', 2, false], ['balken_2l', 4,
               ['balken_4r', 32, false, 'maxbalken', 'tempbalken'], ['balken_5l', 64, false], ['balken_5r', 128, false], ['zeitbalken', 256, true]];
 var REGENLAGEN = [['Full height', 'columns up to the time bar, 1 mm/h there (umbrella time)'],
                   ['Bottom', 'below the bars: the wettest hour = full height, the rest scales along'], ['Off', 'no rain columns']];
-var OPTIONEN = ['achse', 'saeulen', 'regen_hinter', 'sonne_tag', 'sonne_daemmerung', 'sonne_nacht', 'sonne_streifen', 'streifen_voll', 'staerke_s', 'drucklage', 'regenlage', 'zeitmarke', 'luftdruck', 'regenvoll', 'sonne', 'tageslinie', 'verlauf', 'schwelle',
+// Layers (0.33.0): order of the drawing from back to front as a string of layer numbers = enum E_… in main.c. The background
+// (colour or sun position with the night) always stays at the back. 'himmel' = day and twilight of the sun position once more:
+// right above the background it changes nothing, above the rain it is the old switch "rain behind day and twilight" (0.25.0)
+var EBENEN = [['himmel', 'Day & twilight'], ['saeulen', 'Columns'], ['regen', 'Rain'], ['druck', 'Pressure line'], ['balken', 'Bars'],
+              ['streifen', 'Sun stripes'], ['linien', 'Time lines'], ['zeit', 'Time'], ['bloecke', 'Blocks']];
+var EBENEN_STD = '012345678', EBENEN_HINTER = '120345678';   // default; rain behind day and twilight (taken over from regen_hinter)
+function ebenenGueltig(e) {
+  return typeof e === 'string' && e.length === EBENEN.length && e.split('').sort().join('') === EBENEN_STD;
+}
+function ebenenBytes(o) { return (ebenenGueltig(o.ebenen) ? o.ebenen : EBENEN_STD).split('').map(Number); }
+var OPTIONEN = ['achse', 'saeulen', 'ebenen', 'sonne_tag', 'sonne_daemmerung', 'sonne_nacht', 'sonne_streifen', 'streifen_voll', 'staerke_s', 'drucklage', 'regenlage', 'zeitmarke', 'luftdruck', 'regenvoll', 'sonne', 'tageslinie', 'verlauf', 'schwelle',
                 'zeile1', 'zeile5', 'druckvoll', 'staerke_v', 'staerke_h', 'staerke_d', 'voll_v', 'voll_h', 'regen_vorn', 'regen_rel', 'rahmen_z']
   .concat(BALKEN.map(function (b) { return b[0]; }), BLOECKE.map(function (b) { return b[0]; }), BLOECKE.map(function (b) { return b[5]; }),
           BLOECKE.map(function (b) { return b[7]; }));
@@ -252,7 +266,8 @@ function optionenPruefen(o) {
   aus.regen_rel = an('regen_rel', aus.regenlage === 1);   // 0.18.0; whoever had "bottom" was already relative
   aus.rahmen_z = an('rahmen_z', false);                   // 0.19.0: shared frame around the time lines
   aus.saeulen = an('saeulen', true);                      // 0.24.0: background columns can be switched off
-  aus.regen_hinter = an('regen_hinter', false);           // 0.25.0: day (since 0.25.1 also twilight) of the sun position in front of the rain
+  // 0.33.0: layer order; until 0.32.0 the switch regen_hinter (0.25.0: day, since 0.25.1 also twilight in front of the rain)
+  aus.ebenen = o && ebenenGueltig(o.ebenen) ? o.ebenen : an('regen_hinter', false) ? EBENEN_HINTER : EBENEN_STD;
   aus.sonne_tag = an('sonne_tag', true); aus.sonne_daemmerung = an('sonne_daemmerung', true); aus.sonne_nacht = an('sonne_nacht', true);   // 0.26.0
   aus.sonne_streifen = an('sonne_streifen', false); aus.streifen_voll = an('streifen_voll', true);
   aus.staerke_s = o && typeof o.staerke_s === 'number' && o.staerke_s >= 1 && o.staerke_s <= 20 ? Math.floor(o.staerke_s) : 2;
@@ -265,11 +280,11 @@ function optionenPruefen(o) {
 // width vertical, horizontal (px), frame, sun stripes (0.26.0), baro (0.31.0)
 function linienBytes(o) { return [o.staerke_v, o.staerke_h, o.rahmen_z ? 1 : 0, o.staerke_s || 2, o.staerke_d || 2]; }
 function bloeckeBytes(o) { return BLOECKE.map(function (b) { return o[b[0]]; }); }
-// Message SCHALTER: bit 0 columns (0.24.0), 1 rain behind day and twilight (0.25.0), 2–4 areas day, twilight, night,
+// Message SCHALTER: bit 0 columns (0.24.0), 1 rain behind day and twilight (0.25.0, unused since 0.33.0: EBENEN), 2–4 areas day, twilight, night,
 // 5 sun stripes, 6 stripes solid (0.26.0), 7–8 time axis: 0 = 04–20 h, 1 = 00–24 h (0.28.0), 2 = 16–08 h (0.29.0). Missing keys = default
 function schalterZahl(o) {
   function an(k, std) { return typeof o[k] === 'boolean' ? o[k] : std; }
-  return (an('saeulen', true) ? 1 : 0) | (an('regen_hinter', false) ? 2 : 0) | (an('sonne_tag', true) ? 4 : 0) | (an('sonne_daemmerung', true) ? 8 : 0) |
+  return (an('saeulen', true) ? 1 : 0) | (an('sonne_tag', true) ? 4 : 0) | (an('sonne_daemmerung', true) ? 8 : 0) |
          (an('sonne_nacht', true) ? 16 : 0) | (an('sonne_streifen', false) ? 32 : 0) | (an('streifen_voll', true) ? 64 : 0) |
          ((o.achse === 1 || o.achse === 2 ? o.achse : typeof o.achse === 'number' ? 0 : an('achse24', false) ? 1 : 0) << 7);
 }
@@ -318,6 +333,9 @@ function nachtPruefen(n) {
   if (typeof o.dicke_d === 'number' && o.staerke_d === undefined) {   // night baro width until 0.30.0 as index dicke_d
     o = JSON.parse(JSON.stringify(o)); o.staerke_d = o.dicke_d + 1;
   }
+  if (typeof o.regen_hinter === 'boolean' && o.ebenen === undefined) {   // night "rain behind the day" until 0.32.0 → layer order
+    o = JSON.parse(JSON.stringify(o)); o.ebenen = o.regen_hinter ? EBENEN_HINTER : EBENEN_STD;
+  }
   test = optionenPruefen(o);
   FARBEN.forEach(function (e) { if (farbeErlaubt(e[0], f[e[0]])) aus.farben[e[0]] = f[e[0]].toUpperCase(); });
   for (k in o) if (OPTIONEN.indexOf(k) >= 0 && o[k] === test[k]) aus.optionen[k] = o[k];
@@ -342,6 +360,7 @@ function anUhr(tag, nacht, glob) {
            ZELLEN: zellenBytes(tag.optionen), ZELLEN_N: zellenBytes(n.optionen),
            SCHALTER: schalterZahl(tag.optionen), SCHALTER_N: schalterZahl(n.optionen),
            TEXTE: texteBytes(tag.optionen), TEXTE_N: texteBytes(n.optionen),
+           EBENEN: ebenenBytes(tag.optionen), EBENEN_N: ebenenBytes(n.optionen),   // 0.33.0
            NACHTMODUS: nacht.an ? 1 : 0, GLOBAL: globalZahl(glob, glob && glob.sprache) };
 }
 // Compact themes for the settings page (0.30.0): only what differs from the default — the page is a data URL, nine stock presets in
@@ -414,7 +433,7 @@ var VORLAGEN = [
       farben: { saeule: '000000', regen: '00AAFF', druck: 'FFFFFF', jetzt: 'FFAA00', ziffer: 'FF0000', kante: '000000', balken: 'FFAA00',
         z_tag: 'FF0000', z_monat: '0055FF', z_min: '0055FF', z_max: 'FF0000', s_nacht: '5500AA', s_tag: 'FFAA00', tlinie: 'FFAA00' },
       optionen: { luftdruck: false, regenvoll: true, sonne: true, tageslinie: true, schwelle: 0, zeile1: true, zeile5: true, druckvoll: true,
-        voll_v: true, regen_rel: true, rahmen_z: true, saeulen: false, regen_hinter: true, staerke_d: 1, staerke_v: 10, staerke_h: 10 } },
+        voll_v: true, regen_rel: true, rahmen_z: true, saeulen: false, ebenen: EBENEN_HINTER, staerke_d: 1, staerke_v: 10, staerke_h: 10 } },
     nacht: { an: true, farben: { saeule: 'FFFFFF', ziffer: 'FFFFFF', kante: 'AA00FF', balken: 'FFFFFF', z_tag: 'FFFFFF', z_monat: 'FFFFFF',
       z_min: 'FFFFFF', z_max: 'FFFFFF', tlinie: 'FFFFFF' }, optionen: { verlauf: false, regenlage: 2, sonne: false, zeitmarke: false, staerke_h: 5 } } },
   // ---------- 0.30.0: two more, each with a night look ----------
@@ -460,5 +479,6 @@ module.exports = { wetterUrl: wetterUrl, wetterPaket: wetterPaket, wetter2Paket:
                    optionenZahl: optionenZahl, nachtPruefen: nachtPruefen, nachtThema: nachtThema, anUhr: anUhr,
                    presetsPruefen: presetsPruefen, ortsMinuten: ortsMinuten, REGENLAGEN: REGENLAGEN, daemmerung: daemmerung,
                    BLOECKE: BLOECKE, INHALTE: INHALTE, bloeckeBytes: bloeckeBytes,
+                   EBENEN: EBENEN, EBENEN_STD: EBENEN_STD, EBENEN_HINTER: EBENEN_HINTER, ebenenGueltig: ebenenGueltig, ebenenBytes: ebenenBytes,
                    vorlagen: vorlagen, vorlagenBasis: vorlagenBasis, linienBytes: linienBytes, wmoArt: wmoArt, istZelle: istZelle, inhaltGueltig: inhaltGueltig, W_FEST: W_FEST, zellenBytes: zellenBytes,
                    W_TEXT: W_TEXT, TEXT_MAX: TEXT_MAX, textCodes: textCodes, texteBytes: texteBytes, schalterZahl: schalterZahl, NACHTSTUNDEN: NACHTSTUNDEN };

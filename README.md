@@ -175,6 +175,16 @@ family its own color or edge. Here: orange digits with a red edge, blue edges in
 
 <br clear="right">
 
+### Outline per block
+
+<img src="docs/images/feature-outlines.png" width="200" align="right" alt="Outline per block">
+
+The thin rim around every digit, letter and symbol has a color of its own — one for all, or one per block and for the
+time. Here: a blue rim around the time, pink in row 2, green and orange in row 4, row 5 with the common black one.
+Curves keep their own outline.
+
+<br clear="right">
+
 ### Rain
 
 <p>
@@ -213,6 +223,20 @@ just two stripes at sunrise and sunset.*
 The horizontal lines read the day **top to bottom**: midnight at the top, sunrise above sunset — right where the
 sunrise digits in row 1 and the sunset digits in row 5 sit.
 
+### Layers
+
+<p>
+  <img src="docs/images/feature-layers-default.png" width="200" alt="Default layer order">
+  <img src="docs/images/feature-layers.png" width="200" alt="Rain in front of the bars, time lines in front of everything">
+</p>
+
+*The default order · rain in front of the bars, the time lines in front of everything — the horizontal one runs across
+the time digits.*
+
+What lies in front of what is up to you: the time, the blocks, time lines, sun stripes, bars, pressure line, rain,
+columns and the day and twilight of the sun position. Move them up and down in a list; the preview follows right away.
+The background stays at the back. Rain behind day and twilight, a switch until now, is just “Day & twilight” above “Rain”.
+
 ### Night mode
 
 From sunset to sunrise a night theme takes over. It starts as a copy of the day and only keeps what you change —
@@ -222,7 +246,7 @@ watch right away, so you can judge it in daylight (and the day at night).
 ## Settings
 
 Pebble app → Neonweather → settings. A live preview on top — with sample weather and a slider for the time, and a small
-copy that follows you while you scroll — then English or German, day and night, the time axis and eight sections.
+copy that follows you while you scroll — then English or German, day and night, the time axis and nine sections — Layers last.
 At night every section tells you how many things you changed.
 
 <p>
@@ -234,6 +258,9 @@ At night every section tells you how many things you changed.
   <img src="docs/images/settings-digits.png" width="260" alt="Digits and symbols">
   <img src="docs/images/settings-presets.png" width="260" alt="Presets">
   <img src="docs/images/settings-german.png" width="260" alt="German">
+</p>
+<p>
+  <img src="docs/images/settings-layers.png" width="260" alt="Layers">
 </p>
 
 ### Share a preset

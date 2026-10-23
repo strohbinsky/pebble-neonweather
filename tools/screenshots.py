@@ -182,6 +182,12 @@ shot("axis-night", "night", "23:40", o={"achse": 2, "regen_rel": True})
 # one main colour for every digit, a 3D edge per block
 shot("feature-colors", "april", "12:05", o={"zeile1": True, "inhalt_1l": 20, "inhalt_1r": 1},
      f={"haupt": "FFAA55", "kante": "AA0000", "kante_1l": "0055FF", "kante_1r": "0055FF", "ziffer": "FFFFFF", "kante_zeit": "550055"})
+# an outline per block and for the time (0.32.0): blue around the time, own colours in rows 2 and 4, row 5 with the common one
+shot("feature-outlines", "autumn", "10:33", o={"zeile5": True},
+     f={"rand_zeit": "00AAFF", "rand_2l": "FF55AA", "rand_2r": "FF55AA", "rand_4l": "55FF55", "rand_4r": "FFAA00"})
+# layers (0.33.0): default order, then rain in front of the bars and the time lines in front of everything, digits included
+shot("feature-layers-default", "april", "12:05", o={"tageslinie": True, "voll_v": True, "staerke_v": 4})
+shot("feature-layers", "april", "12:05", o={"tageslinie": True, "voll_v": True, "staerke_v": 4, "ebenen": "013425786"})
 
 # ---------- Settings page (Brave or Chrome headless; BROWSER=<path> to choose) ----------
 BROWSER = os.environ.get("BROWSER") or next((b for b in ("/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
@@ -210,4 +216,5 @@ seite("settings-rows", offen("zahlen"), 1500)
 seite("settings-presets", offen("presets", "teilen=0;"), 1250)
 seite("settings-sun", offen("sonne", "z.tag.optionen.sonne=true;z.tag.optionen.sonne_streifen=true;"), 1600)
 seite("settings-german", "sp='de';" + offen("regen"), 1150)
-seite("settings-digits", offen("ziffern"), 1500)                 # 0.30.0: main colour, 3D edge, symbol families
+seite("settings-digits", offen("ziffern"), 1500)
+seite("settings-layers", offen("ebenen", "z.tag.optionen.ebenen='013425786';"), 1500)   # 0.33.0                 # 0.30.0: main colour, 3D edge, symbol families

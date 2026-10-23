@@ -73,17 +73,24 @@ assert.ok(logik.wetterUrl(50.1, 8.68).indexOf('latitude=50.10&longitude=8.68') >
 console.log('logic ok: rain', p.bytes.slice(0, 17).join(','), '| pressure', p.bytes.slice(17, 34).join(','), '| T', p.bytes[34], p.bytes[35]);
 // colours: default, lower case, invalid values (no Pebble colour) → default
 var std = logik.farbenBytes(null);
-assert.strictEqual(std.length, 67);
+assert.strictEqual(std.length, 76);
 assert.deepStrictEqual(std, [0x00, 0x11, 0x1B, 0x37, 0x3F, 64, 0x00, 0x22, 0x12, 0x01, 0x01, 0x01, 0x01, 64, 64, 64, 64,
                              0x00, 0x21, 0x34, 0x24, 0x3F, 64, 64, 0x01, 0x01, 64, 64, 0x01, 0x01, 0x00, 0x3F, 0x22, 0x37,
                              0x00, 0x22, 0x37, 0x12, 0x00, 0x3F, 0x22, 0x38, 0x34,
                              64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,    // 0.28.0: 3D edge per block, symbol families: inherit
-                             0x3F, 64, 64, 64, 64, 64, 64, 64, 64]);   // 0.30.0: main colour white; time and block digits inherit it; 3D per family
+                             0x3F, 64, 64, 64, 64, 64, 64, 64, 64,    // 0.30.0: main colour white; time and block digits inherit it; 3D per family
+                             64, 64, 64, 64, 64, 64, 64, 64, 64]);    // 0.32.0: outline per block and of the time: inherit
 // inherit (0.28.0): only the new colours may be empty; the watch gets 64
 var fe = logik.farbenPruefen({ kante_2l: '0055ff', sf_mond: '', grund: '', kante: '' });
 assert.strictEqual(fe.kante_2l, '0055FF'); assert.strictEqual(fe.sf_mond, ''); assert.strictEqual(fe.grund, '000000', 'background never empty');
 assert.strictEqual(fe.kante, 'AA00AA', 'the common 3D edge never empty');
 var fb = logik.farbenBytes(fe); assert.strictEqual(fb[43 + 2], 0x07, 'edge row 2 left'); assert.strictEqual(fb[43 + 9 + 4], 64, 'moon inherits');
+// outline per block (0.32.0): empty = the common outline, own colour goes to byte 67 + block, the time to 75; the common one never empty
+var fr = logik.farbenPruefen({ rand_2l: 'ff5500', rand_zeit: '0000aa', rand: '' });
+assert.deepStrictEqual([fr.rand_2l, fr.rand_zeit, fr.rand_1l, fr.rand], ['FF5500', '0000AA', '', '000000']);
+var fbr = logik.farbenBytes(fr); assert.deepStrictEqual([fbr[67 + 2], fbr[75], fbr[67], fbr[6]], [0x34, 0x02, 64, 0x00], 'outline bytes');
+assert.ok(logik.BLOECKE.every(function (b, i) { return b[8] === logik.FARBEN[67 + i][0]; }), 'outline key per block = colour 67 + block');
+assert.deepStrictEqual(logik.nachtPruefen({ an: true, farben: { rand_5r: 'FFFFFF' }, optionen: {} }).farben, { rand_5r: 'FFFFFF' }, 'night outline');
 var nf = logik.nachtPruefen({ an: true, farben: { kante_2l: '', sf_pfeil: 'FFFF00', grund: '' }, optionen: {} });
 assert.deepStrictEqual(nf.farben, { kante_2l: '', sf_pfeil: 'FFFF00' }, 'night may set an inherited colour, not the background');
 var f = logik.farbenPruefen({ balken: '0000aa', regen: '123456', grund: 'FFFFFF' });
@@ -113,7 +120,18 @@ assert.strictEqual(logik.optionenPruefen({ inhalt_2l: 42 }).inhalt_2l, 1, 'inval
 assert.deepStrictEqual(logik.INHALTE.slice(logik.W_FEST), require('../../src/pkjs/symbole').namen, 'names as in tools/symbole.py');
 var us = logik.anUhr({ farben: {}, optionen: logik.optionenPruefen({ saeulen: false }) }, logik.nachtPruefen({ an: true, optionen: { saeulen: true } }));
 assert.deepStrictEqual([logik.anUhr({ farben: {}, optionen: logik.optionenPruefen(null) }, logik.nachtPruefen(null)).SCHALTER, us.SCHALTER, us.SCHALTER_N], [93, 92, 93], 'columns (0.24.0); default: day, twilight, night, stripes solid');
-assert.strictEqual(logik.anUhr({ farben: {}, optionen: logik.optionenPruefen({ regen_hinter: true }) }, logik.nachtPruefen(null)).SCHALTER, 95, 'rain behind the day (0.25.0)');
+var uh = logik.anUhr({ farben: {}, optionen: logik.optionenPruefen({ regen_hinter: true }) }, logik.nachtPruefen(null));
+assert.strictEqual(uh.SCHALTER, 93, 'bit 1 unused since 0.33.0'); assert.deepStrictEqual(uh.EBENEN, [1, 2, 0, 3, 4, 5, 6, 7, 8], 'rain behind the day → layer order (0.33.0)');
+// layers (0.33.0): default, valid orders only, night of its own and from regen_hinter, compact presets without the default
+assert.strictEqual(logik.optionenPruefen(null).ebenen, '012345678'); assert.deepStrictEqual(uh.EBENEN_N, uh.EBENEN, 'night like the day');
+assert.strictEqual(logik.optionenPruefen({ ebenen: '876543210', regen_hinter: true }).ebenen, '876543210', 'order wins over the old switch');
+['012345677', '01234567', '0123456789', 12345678, null].forEach(function (e) { assert.strictEqual(logik.optionenPruefen({ ebenen: e }).ebenen, '012345678', 'invalid ' + e); });
+assert.deepStrictEqual(logik.nachtPruefen({ an: true, optionen: { regen_hinter: true } }).optionen, { ebenen: '120345678' }, 'night regen_hinter taken over');
+assert.deepStrictEqual(logik.nachtPruefen({ an: true, optionen: { ebenen: 'x' } }).optionen, {}, 'invalid night order dropped');
+var un = logik.anUhr({ farben: {}, optionen: logik.optionenPruefen(null) }, logik.nachtPruefen({ an: true, optionen: { ebenen: '012345687' } }));
+assert.deepStrictEqual([un.EBENEN, un.EBENEN_N], [[0, 1, 2, 3, 4, 5, 6, 7, 8], [0, 1, 2, 3, 4, 5, 6, 8, 7]]);
+assert.ok(!('ebenen' in logik.kompakt({ farben: logik.farbenPruefen(null), optionen: logik.optionenPruefen(null) }).optionen), 'compact: default order left out');
+assert.ok(!('regen_hinter' in logik.optionenPruefen({ regen_hinter: true })), 'old switch no longer stored');
 var so = logik.optionenPruefen({ sonne_tag: false, sonne_daemmerung: false, sonne_nacht: false, sonne_streifen: true, streifen_voll: false, staerke_s: 9 });
 assert.strictEqual(logik.anUhr({ farben: {}, optionen: so }, logik.nachtPruefen(null)).SCHALTER, 1 | 32, 'stripes only, dashed (0.26.0)');
 assert.deepStrictEqual(logik.linienBytes(so), [2, 1, 0, 9, 2], 'stripe width in LINIEN byte 3, baro 2 px');
@@ -190,7 +208,7 @@ vl.forEach(function (p) {                                 // stock presets are v
 logik.vorlagenBasis().slice(6).forEach(function (p) { assert.strictEqual(p.nacht.an, true, p.name + ' with a night look'); });
 vl.forEach(function (p) {
   var u = logik.anUhr(p.tag, p.nacht);
-  assert.strictEqual(u.FARBEN.length, 67, p.name); assert.strictEqual(u.BLOECKE.length, 8, p.name); assert.strictEqual(u.LINIEN.length, 5, p.name);
+  assert.strictEqual(u.FARBEN.length, 76, p.name); assert.strictEqual(u.EBENEN.length, 9, p.name); assert.strictEqual(u.BLOECKE.length, 8, p.name); assert.strictEqual(u.LINIEN.length, 5, p.name);
 });
 assert.strictEqual(vl[2].tag.farben.grund, 'FFFFFF'); assert.strictEqual(vl[2].nacht.farben.grund, '000000', 'Paper inverted at night');
 assert.deepStrictEqual(vl[3].tag, logik.nachtThema(vl[2].tag, vl[2].nacht), 'Paper Night = night look of Paper');

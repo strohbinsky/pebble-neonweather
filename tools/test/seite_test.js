@@ -14,7 +14,7 @@ speicher.optionen = JSON.stringify({ datumbalken: true, regenunten: true, sonnen
 speicher.balken = '0000AA';
 h.ready();
 var d0 = gesendet[0];
-assert.strictEqual(d0.BEREIT, 1); assert.strictEqual(d0.FARBEN.length, 67); assert.strictEqual(d0.FARBEN[8], 0x02, 'old bar colour blue');
+assert.strictEqual(d0.BEREIT, 1); assert.strictEqual(d0.FARBEN.length, 76); assert.strictEqual(d0.FARBEN[8], 0x02, 'old bar colour blue');
 assert.strictEqual(d0.OPTIONEN & 511, 4 + 8 + 256, 'row 2 left/right from the date bars, time');
 assert.strictEqual(d0.OPTIONEN >> 11 & 3, 1, 'rain at the bottom taken over');
 assert.strictEqual(d0.OPTIONEN >> 25 & 1, 1, 'whoever had bottom stays relative');
@@ -47,7 +47,7 @@ function hat(text) { return knoten('inhalt').innerHTML.indexOf(text) >= 0; }
 function antwort() { knoten('ok').onclick(); return JSON.parse(decodeURIComponent(document.location.split('#')[1])); }
 
 var zn = oeffnen();
-assert.strictEqual(zaehle(/class='sek'/g), 8, 'eight sections'); assert.strictEqual(zaehle(/data-sw=/g), 0, 'all collapsed');
+assert.strictEqual(zaehle(/class='sek'/g), 9, 'nine sections (0.33.0: Layers)'); assert.strictEqual(zaehle(/data-sw=/g), 0, 'all collapsed');
 assert.ok(zn.n > 50, 'preview drawn');
 assert.ok(hat("data-sp='en' class='a'") && hat('Rows &amp; content') === false && hat('Rows & content'), 'English by default');
 assert.strictEqual(knoten('ok').textContent, 'Save'); assert.strictEqual(knoten('hw').textContent, 'Preview with sample data, simplified font');
@@ -64,7 +64,7 @@ klick('data-sek', 'kurven');                              // section Curves (0.2
 assert.strictEqual(zaehle(/data-k='b_kurve'/g), 0, 'pressure curve not in use: its colours hidden');
 waehle('inhalt_4l', 18);                                   // pressure curve in the preview
 ['kurve', 'k_kante', 'k_rand', 'k_punkt', 'k_pkante', 'b_kurve', 'b_kante', 'b_rand', 'b_punkt', 'b_pkante'].forEach(function (k) {
-  assert.strictEqual(zaehle(new RegExp("data-k='" + k + "'", 'g')), /^(kurve|k_kante|b_kurve|b_kante)$/.test(k) ? 2 : 1, 'colour ' + k + ' (0.28.0: line and edge also in the curve block card)');
+  assert.strictEqual(zaehle(new RegExp("data-k='" + k + "'", 'g')), /^(kurve|k_kante|k_rand|b_kurve|b_kante|b_rand)$/.test(k) ? 2 : 1, 'colour ' + k + ' (0.28.0: line and edge also in the curve block card, 0.32.0 the outline too)');
 });
 klick('data-k', 'k_kante'); klick('data-c', '0055AA'); klick('data-k', 'b_rand'); klick('data-c', 'FFFFFF'); klick('data-sek', 'kurven');
 assert.strictEqual(zaehle(/data-in='zweit_/g), 2, 'right cell only with symbols (row 5); curve and baro with hPa take the whole block');
@@ -155,21 +155,47 @@ assert.strictEqual(speicher.sprache, 'en', 'language stored');
 var mit = oeffnen().n; klick('data-sek', 'himmel'); assert.strictEqual(zaehle(/data-sw='regen_hinter'/g), 0, 'no sun position, no "rain behind the day"'); var ohne = { n: 0 }; knoten('v').getContext = function () { return { fillRect: function () { ohne.n++; },
   fillText: function () {}, strokeText: function () {}, beginPath: function () {}, moveTo: function () {}, lineTo: function () {}, stroke: function () {} }; };
 klick('data-sw', 'saeulen'); assert.strictEqual(antwort().tag.optionen.saeulen, false); assert.ok(ohne.n > 0 && ohne.n < mit, 'preview without columns');
-klick('data-sw', 'sonne'); klick('data-sw', 'regen_hinter'); assert.strictEqual(antwort().tag.optionen.regen_hinter, true, 'rain behind the day (0.25.0)');
-h.webviewclosed({ response: document.location.split('#')[1] }); assert.strictEqual(gesendet[gesendet.length - 1].SCHALTER, 94, 'columns off, rain behind the day');
+klick('data-sw', 'sonne'); klick('data-sek', 'ebenen'); klick('data-eb', '0:1'); klick('data-eb', '1:1');
+assert.strictEqual(antwort().tag.optionen.ebenen, '120345678', 'rain behind the day = "Day & twilight" above the rain (0.33.0)'); klick('data-sek', 'ebenen');
+h.webviewclosed({ response: document.location.split('#')[1] }); assert.strictEqual(gesendet[gesendet.length - 1].SCHALTER, 92, 'columns off, bit 1 unused since 0.33.0');
+assert.deepStrictEqual(gesendet[gesendet.length - 1].EBENEN, [1, 2, 0, 3, 4, 5, 6, 7, 8], 'layer order to the watch');
 // Sun position (0.26.0): own section, sub-options per area, stripes
 oeffnen(); klick('data-sek', 'sonne');
-['sonne_nacht', 'sonne_daemmerung', 'verlauf', 'sonne_tag', 'sonne_streifen', 'regen_hinter'].forEach(function (k) {
+assert.ok(hat('move “Day & twilight” above “Rain”') && !hat("data-sw='regen_hinter'"), 'hint instead of the switch (0.33.0)');
+['sonne_nacht', 'sonne_daemmerung', 'verlauf', 'sonne_tag', 'sonne_streifen'].forEach(function (k) {
   assert.strictEqual(zaehle(new RegExp("data-sw='" + k + "'", 'g')), 1, 'switch ' + k);
 });
 assert.strictEqual(zaehle(/data-rg='staerke_s'/g), 0, 'stripes off: no width');
 klick('data-sw', 'sonne_streifen'); regel('staerke_s', 7); klick('data-ch', 'streifen_voll:0');
 assert.strictEqual(zaehle(/data-k='s_auf'/g) + zaehle(/data-k='s_unter'/g), 2, 'colours sunrise and sunset');
 klick('data-sw', 'sonne_daemmerung'); assert.strictEqual(zaehle(/data-sw='verlauf'/g), 0, 'twilight off: gradient hidden');
-klick('data-sw', 'sonne_tag'); assert.strictEqual(zaehle(/data-sw='regen_hinter'/g), 0, 'no day and no twilight, no "rain behind …"');
+klick('data-sw', 'sonne_tag'); assert.ok(!hat('above “Rain”'), 'no day and no twilight, no hint');
 antwort(); h.webviewclosed({ response: document.location.split('#')[1] });
 var ds = gesendet[gesendet.length - 1];
-assert.strictEqual(ds.SCHALTER, 2 | 16 | 32, 'rain behind (stays stored), night, stripes dashed'); assert.strictEqual(ds.LINIEN[3], 7, 'stripes 7 px');
+assert.strictEqual(ds.SCHALTER, 16 | 32, 'night, stripes dashed'); assert.deepStrictEqual(ds.EBENEN, [1, 2, 0, 3, 4, 5, 6, 7, 8], 'layer order stays stored');
+// Layers (0.33.0): top = front, ▲▼ swap neighbours, default button, night with ↺; "rain cuts through" only with the rain behind the lines
+oeffnen(); klick('data-sek', 'ebenen');
+assert.strictEqual(zaehle(/data-eb='\d:1'/g), 8, '8 × ▲'); assert.strictEqual(zaehle(/data-eb='\d:-1'/g), 8, '8 × ▼');
+assert.ok(hat("data-eb='std'"), 'default button when changed'); klick('data-eb', 'std');
+assert.strictEqual(antwort().tag.optionen.ebenen, '012345678'); assert.ok(!hat("data-eb='std'"), 'no default button at the default');
+var ht = knoten('inhalt').innerHTML; ht = ht.slice(ht.indexOf('Top = in front')); assert.ok(ht.indexOf('>Blocks<') < ht.indexOf('>Time lines<') && ht.indexOf('>Time lines<') < ht.indexOf('>Day & twilight<') &&
+  ht.indexOf('>Day & twilight<') < ht.indexOf('>Background<'), 'top = front, background at the bottom');
+klick('data-sek', 'linien'); assert.strictEqual(zaehle(/data-sw='regen_vorn'/g), 1, 'rain behind the lines: "cuts through" shown');
+['2:1', '3:1', '4:1', '5:1'].forEach(function (k) { klick('data-eb', k); });   // rain four steps to the front, past the lines
+assert.strictEqual(antwort().tag.optionen.ebenen, '013456278'); assert.strictEqual(zaehle(/data-sw='regen_vorn'/g), 0, 'rain in front of the lines: no switch');
+klick('data-eb', '0:-1'); assert.strictEqual(antwort().tag.optionen.ebenen, '013456278', 'nothing behind the last one');
+klick('data-tab', 'nacht'); klick('data-eb', '8:-1'); assert.strictEqual(antwort().nacht.optionen.ebenen, '013456287', 'own night order');
+assert.strictEqual(zaehle(/data-reset='optionen:ebenen'/g), 1, 'night ↺'); assert.ok(hat('1 changed'), 'header counts it');
+h.webviewclosed({ response: document.location.split('#')[1] }); var de8 = gesendet[gesendet.length - 1];
+assert.deepStrictEqual([de8.EBENEN, de8.EBENEN_N], [[0, 1, 3, 4, 5, 6, 2, 7, 8], [0, 1, 3, 4, 5, 6, 2, 8, 7]], 'day and night order to the watch');
+oeffnen(); klick('data-tab', 'nacht'); klick('data-sek', 'ebenen'); klick('data-reset', 'optionen:ebenen');
+assert.ok(!('ebenen' in antwort().nacht.optionen), 'night back to the day order');
+klick('data-tab', 'tag'); klick('data-eb', 'std'); antwort(); h.webviewclosed({ response: document.location.split('#')[1] });
+// old preset codes: regen_hinter becomes the order, a broken order the default
+oeffnen(); klick('data-sek', 'presets');
+knoten('psimport').value = JSON.stringify({ name: 'Alt', tag: { farben: {}, optionen: { regen_hinter: true } }, nacht: { an: false, farben: {}, optionen: { ebenen: '011345678' } } });
+klick('data-ps', 'import'); var pi = antwort().presets.filter(function (q) { return q.name === 'Alt'; })[0];
+assert.strictEqual(pi.tag.optionen.ebenen, '120345678', 'import: rain behind the day'); assert.ok(!('ebenen' in pi.nacht.optionen), 'import: broken night order dropped'); assert.strictEqual(ds.LINIEN[3], 7, 'stripes 7 px');
 // Default colours at night = all night colours back
 oeffnen(); klick('data-tab', 'nacht'); assert.strictEqual(knoten('std').textContent, 'Night colors like day');
 knoten('std').onclick(); assert.strictEqual(knoten('std').textContent, 'Sure? Tap again');
@@ -236,6 +262,14 @@ klick('data-k', 'kante_2l'); klick('data-c', ''); assert.strictEqual(antwort().t
 klick('data-k', 'kante_2l'); klick('data-c', 'AA0000');
 waehle('inhalt_2r', 10); assert.ok(hat("data-k='kurve'") && hat("data-k='k_kante'") && hat('Curve colors apply'), 'curve block: line and edge of the curve');
 assert.ok(hat("data-k='kante_zeit'"), '3D edge of the time');
+// outline per block and of the time (0.32.0): inherits the digit outline, own colour, back; curve blocks show the curve outline
+assert.ok(hat("data-k='rand_2l'") && hat("data-k='rand_zeit'"), 'outline swatch in the card and for the time');
+assert.ok(hat("data-k='k_rand'"), 'curve block: outline of the curve'); assert.ok(!hat("data-k='rand_2r'"), 'not the block outline');
+klick('data-k', 'rand_2l'); assert.ok(hat('like digit outline') && zaehle(/class='f/g) === 65, 'palette with "like digit outline"');
+klick('data-c', 'FF5500'); assert.strictEqual(antwort().tag.farben.rand_2l, 'FF5500');
+klick('data-k', 'rand_2l'); klick('data-c', ''); assert.strictEqual(antwort().tag.farben.rand_2l, '', 'back to the common outline');
+klick('data-k', 'rand_zeit'); klick('data-c', '0000AA');
+var ar = antwort(); assert.strictEqual(ar.tag.farben.rand_zeit, '0000AA');
 assert.strictEqual(zaehle(/data-k='sf_/g), 0, 'symbol colours moved to "Digits & symbols" (0.30.0)'); klick('data-sek', 'ziffern');
 ['sf_pfeil', 'sf_schirm', 'sf_warnung', 'sf_wetter', 'sf_mond', 'sf_alt', 'sf_freude', 'sk_pfeil', 'sk_mond', 'sk_freude', 'haupt', 'kante', 'rand'].forEach(function (k) {
   assert.strictEqual(zaehle(new RegExp("data-k='" + k + "'", 'g')), 1, 'colour ' + k);
@@ -247,12 +281,13 @@ var a8 = antwort();
 assert.deepStrictEqual([a8.tag.farben.sf_mond, a8.tag.farben.sf_pfeil, a8.tag.farben.kante_2l], ['FFFF55', '', 'AA0000']);
 // night: own text and edge, one ↺ for the block takes both back
 klick('data-tab', 'nacht'); tippe('text_2l', 'Mond', true); klick('data-k', 'kante_2l'); klick('data-c', '5555FF');
+klick('data-k', 'rand_2l'); klick('data-c', 'FFFFFF'); assert.strictEqual(antwort().nacht.farben.rand_2l, 'FFFFFF', 'night outline');
 assert.deepStrictEqual(antwort().nacht.optionen.text_2l, 'Mond'); assert.strictEqual(zaehle(/data-reset='blk:2'/g), 1);
-klick('data-reset', 'blk:2'); a8 = antwort(); assert.ok(!('text_2l' in a8.nacht.optionen) && !('kante_2l' in a8.nacht.farben), 'block back to day');
+klick('data-reset', 'blk:2'); a8 = antwort(); assert.ok(!('text_2l' in a8.nacht.optionen) && !('kante_2l' in a8.nacht.farben) && !('rand_2l' in a8.nacht.farben), 'block back to day');
 tippe('text_2l', 'Nachts', true); klick('data-tab', 'tag'); antwort();
 h.webviewclosed({ response: document.location.split('#')[1] });
 var d8 = gesendet[gesendet.length - 1];
-assert.strictEqual(d8.SCHALTER >> 7 & 1, 1, 'axis to the watch'); assert.strictEqual(d8.FARBEN.length, 67);
+assert.strictEqual(d8.SCHALTER >> 7 & 1, 1, 'axis to the watch'); assert.strictEqual(d8.FARBEN.length, 76);
 assert.strictEqual(d8.FARBEN[43 + 2], 0x20, 'edge row 2 left AA0000'); assert.strictEqual(d8.FARBEN[43 + 3], 64, 'edge row 2 right inherits');
 assert.strictEqual(d8.FARBEN[43 + 9 + 4], 0x3D, 'moon FFFF55'); assert.strictEqual(d8.FARBEN[43 + 9], 64, 'arrows inherit');
 assert.deepStrictEqual(d8.TEXTE.slice(0, 7), [0, 0, 4, 83, 69, 66, 39], "block 2: SEB'");
@@ -289,6 +324,7 @@ klick('data-sek', 'presets'); assert.ok(hat('>Papier<') && hat('>Sonnenuhr<') &&
 klick('data-ps', 'wahl:v:2'); assert.ok(hat('>Für den Tag<') && hat('>Abbrechen<'));
 klick('data-ps', 'auf:tag:v:2'); assert.ok(hat('„Papier“ für den Tag geladen'), 'message in German');
 klick('data-tab', 'nacht'); assert.ok(hat('>wie Tag<') || hat('wie Tag'), 'night in German');
+klick('data-sek', 'ebenen'); assert.ok(hat('>Ebenen<') && hat('>Tag und Dämmerung<') && hat('>Blöcke<'), 'layers in German (0.33.0)');
 var english = [];
 knoten('inhalt').innerHTML.replace(/>([^<>]+)</g, function (m, t) { if (/\b(the|and|or|off|on|day|night|bar|row|color)\b/i.test(t)) english.push(t); });
 assert.deepStrictEqual(english, [], 'no English left on the German page');
@@ -315,7 +351,7 @@ klick('data-ps', 'wahl:p:' + (al.presets.length - 1)); klick('data-ps', 'auf:bei
 assert.deepStrictEqual([antwort().tag, antwort().nacht], [vollP(al.presets[pe]).tag, al.presets[pe].nacht], 'loads exactly as saved');
 // ---------- 0.30.0 ----------
 var z30 = oeffnen(); klick('data-sp', 'en'); klick('data-tab', 'tag');
-assert.strictEqual(zaehle(/class='sek'/g), hat("data-sek='kurven'") ? 9 : 8, 'Curves only with a curve in use');
+assert.strictEqual(zaehle(/class='sek'/g), hat("data-sek='kurven'") ? 10 : 9, 'Curves only with a curve in use (0.33.0: plus Layers)');
 ['presets', 'zahlen', 'ziffern', 'regen', 'druck', 'linien', 'himmel', 'sonne'].forEach(function (k) { assert.ok(hat("data-sek='" + k + "'"), 'section ' + k); });
 assert.ok(knoten('inhalt').innerHTML.indexOf("data-ch='achse:") < knoten('inhalt').innerHTML.indexOf("data-sek='presets'"), 'time axis below the tabs, above the sections');
 // time format: one setting for day and night, to the watch as GLOBAL with the weekday language
@@ -363,4 +399,4 @@ oeffnen(); assert.notStrictEqual(antwort().presets.slice(-1)[0].name, 'Reload', 
 h.showConfiguration(); console.log('settings page as data URL: ' + Math.round(url.length / 1024) + ' KB');
 assert.ok(url.length < 130 * 1024, 'data URL below 130 KB');
 console.log('0.30.0 ok: sections, time axis, time format, main colour, family ↺, header counts, preview controls, reload, size');
-console.log('page ok: 8 sections, sun position, 8 blocks with content/bar/colours, rain, baro line, widths, night with ↺ per block, presets, old settings, English/German');
+console.log('page ok: 9 sections, sun position, layers, 8 blocks with content/bar/colours, rain, baro line, widths, night with ↺ per block, presets, old settings, English/German');

@@ -46,6 +46,7 @@ enum { F_GRUND, F_SAEULE, F_REGEN, F_DRUCK, F_JETZT, F_ZIFFER, F_RAND, F_KANTE, 
        F_HAUPT,                                     // 0.30.0: main digit colour; time and blocks inherit it (ERBEN)
        F_SK_PFEIL, F_SK_SCHIRM, F_SK_WARNUNG, F_SK_WETTER, F_SK_MOND, F_SK_ALT,   // 0.30.0: 3D edge per symbol family; ERBEN = the block's
        F_SF_FREUDE, F_SK_FREUDE,                    // 0.30.0: family of the positive symbols (heart, smiley …): colour, 3D edge
+       F_RAND_B, F_RAND_ZEIT = F_RAND_B + 8,        // 0.32.0: digit outline per block 0–7 and of the time; ERBEN = the common outline
        F_ANZAHL };   // F_RAHMEN_Z since 0.19.0   // F_ZIFFER = digits of the time; always append new colours at the end (0.10.0: F_Z_…, 0.12.0: F_S_…, 0.14.0: sun rows)
 // since 0.9.0 no own colours for past hours: every hour looks the same
 static const int32_t FARBE_STD[F_ANZAHL] = {
@@ -98,6 +99,7 @@ static const int32_t FARBE_STD[F_ANZAHL] = {
                                         // inheriting it; the phone sends "inherit" for them by default
   -1, -1, -1, -1, -1, -1,               // 3D edge per symbol family: inherit
   -1, -1,                               // positive symbols: colour and 3D edge inherit
+  -1, -1, -1, -1, -1, -1, -1, -1, -1,   // outline per block and of the time: inherit (0.32.0)
 };
 #define ERBEN 0x40                       // colour byte with bit 6: inherit (phone sends 64 for an empty colour, since 0.28.0)
 static uint8_t farb_code(int32_t hex) { return hex < 0 ? ERBEN : ((hex >> 16 & 255) / 85) << 4 | ((hex >> 8 & 255) / 85) << 2 | (hex & 255) / 85; }
@@ -116,6 +118,13 @@ static const uint8_t BLOCK_STD[8] = { W_AUF_H, W_AUF_M, W_TAG, W_MONAT, W_TMIN, 
 static const uint8_t F_BLOCK_Z[8] = { F_Z_AUF, F_Z_AUF2, F_Z_TAG, F_Z_MONAT, F_Z_MIN, F_Z_MAX, F_Z_UNTER, F_Z_UNTER2 };
 static const uint8_t F_BLOCK_B[8] = { F_AUF_B, F_AUF_B2, F_TAG_B, F_MONAT_B, F_MIN_B, F_MAX_B, F_UNTER_B, F_UNTER_B2 };
 
+// Layers (0.33.0): drawing order from back to front, per theme (message EBENEN, one byte per position = layer number).
+// The background (colour, or the sun position with the night) always stays at the very back. E_HIMMEL draws day and twilight
+// of the sun position once more at its place — right above the background it changes nothing; above the rain it is the
+// switch "rain behind day and twilight" from 0.25.0. Order = list EBENEN in src/pkjs/logik.js
+enum { E_HIMMEL, E_SAEULEN, E_REGEN, E_DRUCK, E_BALKEN, E_STREIFEN, E_LINIEN, E_ZEIT, E_BLOECKE, E_ANZAHL };
+static const uint8_t EBENEN_STD[E_ANZAHL] = { E_HIMMEL, E_SAEULEN, E_REGEN, E_DRUCK, E_BALKEN, E_STREIFEN, E_LINIEN, E_ZEIT, E_BLOECKE };
+
 typedef struct {
   uint8_t farbe[F_ANZAHL];
   uint16_t balken;                      // bits 0–7 bar per block, bit 8 bar of the time
@@ -125,7 +134,7 @@ typedef struct {
                                         // dicke_v/_h 1–20 px (message LINIEN, since 0.15.0), dicke_d 1–20 px (LINIEN byte 4, since 0.31.0; before 1–4 px)
   bool zeitmarke, luftdruck, regenvoll, sonne, tageslinie, verlauf, druckvoll, zeile1, zeile5;
   bool saeulen;                         // 0.24.0: subtle column per hour in the background; off = rain only (message SCHALTER, bit 0)
-  bool regen_hinter;                    // 0.25.0: day (since 0.25.1 also twilight) of the sun position in front of columns and rain (SCHALTER, bit 1)
+  uint8_t ebenen[E_ANZAHL];             // 0.33.0: layer order, back to front (replaces regen_hinter, SCHALTER bit 1, from 0.25.0)
   bool s_tag, s_daem, s_nacht;          // 0.26.0: sun position areas one by one (SCHALTER, bits 2–4); twilight off = night until sunrise
   bool streifen, streifen_voll;         // 0.26.0: sunrise and sunset stripes, solid or dashed (bits 5, 6)
   uint8_t dicke_s;                      // 0.26.0: stripe width 1–20 px (LINIEN byte 3)
@@ -163,6 +172,7 @@ static void thema_std(Thema *t) {
   for (int i = 0; i < F_ANZAHL; i++) t->farbe[i] = farb_code(FARBE_STD[i]);
   optionen_setzen(t, OPTIONEN_STD);
   for (int i = 0; i < 8; i++) { t->block[i] = BLOCK_STD[i]; t->zweit[i] = W_LEER; }
+  memcpy(t->ebenen, EBENEN_STD, E_ANZAHL);
   t->dicke_v = 2; t->dicke_h = 1; t->saeulen = true;
   t->s_tag = t->s_daem = t->s_nacht = true; t->streifen_voll = true; t->dicke_s = 2;
 }
@@ -177,7 +187,8 @@ static GColor farbe(int i) {
 #define C_DRUCK   farbe(F_DRUCK)
 #define C_JETZT   farbe(F_JETZT)
 #define C_ZIFFER  farbe(F_ZIFFER)
-#define C_RAND    farbe(F_RAND)
+static GColor s_rand;                   // outline of the block being drawn (0.32.0: per block, otherwise the common one)
+#define C_RAND    s_rand
 static GColor s_kante;                  // 3D edge of the block being drawn (0.28.0: per block, otherwise the common one)
 #define C_KANTE   s_kante
 static GColor farbe_oder(int i, GColor ersatz) { return A->farbe[i] & ERBEN ? ersatz : farbe(i); }   // colour or, when inherited, the fallback
@@ -812,16 +823,20 @@ static bool himmel(const uint8_t *d) {
   for (int y = 0; y < 228; y++) himmel_zeile(y, auf, unter, da, du);
   return true;
 }
-// Rain behind day and twilight (0.25.0 day only, since 0.25.1 twilight too): these rows are drawn again after columns and
-// rain. Only the night stays behind the rain — and since 0.26.0 every area that is switched off
-static bool vor_regen(const uint8_t *d, int y) {
-  if (!A->regen_hinter || !A->sonne || !d) return false;
+// Rows of the layer "day and twilight" (0.25.0 as "rain behind the day", since 0.33.0 a layer of its own): day and twilight rows
+// that are switched on. The night stays background — and since 0.26.0 every area that is switched off
+static bool tag_zeile(const uint8_t *d, int y) {
+  if (!A->sonne || !d) return false;
   const int da = sonne_min(d, 2), du = sonne_min(d, 3);
   if (sonne_min(d, 0) < 0 || sonne_min(d, 1) < 0 || da < 0 || du < 0) return false;   // like himmel(): otherwise no sun position
   const int m = minute_von_zeile(y);
   if (m >= sonne_min(d, 0) && m < sonne_min(d, 1)) return A->s_tag;
   return A->s_daem && m >= da && m < du;
 }
+
+static int ebene_pos(int e) { for (int i = 0; i < E_ANZAHL; i++) if (A->ebenen[i] == e) return i; return 0; }
+// layer e lies between a and b in the drawing order (in front of a, behind b)
+static bool dazwischen(int e, int a, int b) { const int p = ebene_pos(e); return p > ebene_pos(a) && p < ebene_pos(b); }
 
 static void zeichnen(Layer *l, GContext *ctx) {
   g = ctx;
@@ -838,133 +853,159 @@ static void zeichnen(Layer *l, GContext *ctx) {
     const int r = regen_H(H0 + i);
     if (r != FEHLT && r >= SCHWELLE_Z[A->schwelle] && r > vmax) vmax = r;
   }
-  if (!(A->sonne && d && himmel(d))) flaeche(0, 0, 200, 228, C_GRUND);
-  int hr[24] = { 0 };                               // rain height per column, for "rain in front of the vertical line"
-  for (int i = 0; i < ax->n; i++) {
-    const int x0 = ax->x0 + ax->p * i, r = d ? regen_H(H0 + i) : FEHLT;
-    if (A->saeulen) flaeche(x0, 0, ax->b, 228, C_GEIST);
+  if (!(A->sonne && d && himmel(d))) flaeche(0, 0, 200, 228, C_GRUND);   // background (with the night): always at the very back
+  int hr[24] = { 0 };                               // rain height per column; also for "rain cuts through the vertical line"
+  for (int i = 0; d && i < ax->n; i++) {
+    const int r = regen_H(H0 + i);
     if (r == FEHLT) continue;
-    int h = regen_px(r, vmax);
-    if (h > 228) h = 228;
-    if (h) flaeche(x0, 228 - h, ax->b, h, C_REGEN);
-    hr[i] = h;
+    const int h = regen_px(r, vmax);
+    hr[i] = h > 228 ? 228 : h;
   }
-  for (int y = 0; y < 228; y++)                     // day and twilight in front of the rain (0.25.1)
-    if (vor_regen(d, y)) himmel_zeile(y, sonne_min(d, 0), sonne_min(d, 1), sonne_min(d, 2), sonne_min(d, 3));
-  const int dm = (A->dicke_d - 1) / 2;              // 0.31.0: baro centred on the pressure value like the time lines (up to 2 px it stays as before)
-  for (int i = 0; d && A->luftdruck && !A->druckvoll && i < ax->n; i++) {   // baro dashed; columns do not overlap, order does not matter
-    const int b = druck_H(H0 + i);
-    if (b != FEHLT) flaeche(ax->x0 + ax->p * i, druck_y(b) - dm, ax->b, A->dicke_d, C_DRUCK);
-  }
-  if (d && A->luftdruck && A->druckvoll) {        // baro continuous: line through the hourly values (column centre), horizontal at the edges
-    int px = -1, py = 0;
-    for (int i = 0; i < ax->n; i++) {
-      const int b = druck_H(H0 + i);
-      if (b == FEHLT) continue;
-      const int x = ax->x0 + ax->p * i + ax->b / 2, y = druck_y(b) - dm;
-      linie(px < 0 ? 0 : px, px < 0 ? y : py, x, y, A->dicke_d, C_DRUCK);
-      px = x; py = y;
-    }
-    if (px >= 0) linie(px, py, 199, py, A->dicke_d, C_DRUCK);
-  }
-
-  // Bars: time across the full width; one half per block (x 0–99 / 100–199), rows 1 and 5 only when switched on
   static const int16_t RY[4] = { Y_AUF, Y_DATUM, Y_TEMP, Y_UNTER }, B0[4] = { 0, D_OBEN, B_UNTEN, T_UNTEN }, B1[4] = { D_OBEN, B_OBEN, T_UNTEN, 228 };
   const bool an[4] = { A->zeile1, true, true, A->zeile5 };
-  if (A->balken & 256) flaeche(0, B_OBEN, 200, B_UNTEN - B_OBEN, C_BALKEN);
-  for (int r = 0; r < 4; r++)
-    for (int sei = 0; sei < 2; sei++)
-      if (an[r] && (A->balken >> (2 * r + sei) & 1)) flaeche(100 * sei, B0[r], 100, B1[r] - B0[r], farbe(F_BLOCK_B[2 * r + sei]));
+  s_h12 = s_zeitformat == 2 || (s_zeitformat == 0 && !clock_is_24h_style());   // 12-hour time (0.30.0): no leading zero, sun hours too
+  const GColor kante = farbe(F_KANTE), haupt = farbe(F_HAUPT);   // main digit colour (0.30.0): time and blocks inherit it
+  const GColor rand0 = farbe(F_RAND);
 
-  // Time lines (since 0.16.0) above all bars, right behind the digits: horizontal first, then vertical.
-  // Since 0.19.0 as a list of rectangles: optionally a frame around all pieces first, then the faces — so a cross gets one outline
-  GRect lr[64]; int nh = 0, nv = 0;
-  if (d && A->sonne && A->streifen)                 // sunrise and sunset stripes (0.26.0), below the time lines
-    for (int i = 0; i < 2; i++) {
-      const int m = sonne_min(d, i);
-      if (m < 0) continue;
-      const int ys = zeile_von_minute(m) - (A->dicke_s - 1) / 2;
-      const GColor c = farbe(i ? F_S_UNTER : F_S_AUF);
-      if (A->streifen_voll) flaeche(0, ys, 200, A->dicke_s, c);
-      else for (int x = 0; x < 200; x += 8) flaeche(x, ys, 4, A->dicke_s, c);
+  // Layers in the order of the theme (0.33.0); the default is the fixed order up to 0.32.0
+  for (int e = 0; e < E_ANZAHL; e++) switch (A->ebenen[e]) {
+  case E_HIMMEL:                                    // day and twilight once more; right above the background there is nothing to do
+    if (e > 0) for (int y = 0; y < 228; y++)
+      if (tag_zeile(d, y)) himmel_zeile(y, sonne_min(d, 0), sonne_min(d, 1), sonne_min(d, 2), sonne_min(d, 3));
+    break;
+  case E_SAEULEN:                                   // subtle column per hour (columns do not overlap)
+    if (A->saeulen) for (int i = 0; i < ax->n; i++) flaeche(ax->x0 + ax->p * i, 0, ax->b, 228, C_GEIST);
+    break;
+  case E_REGEN:
+    for (int i = 0; i < ax->n; i++) if (hr[i]) flaeche(ax->x0 + ax->p * i, 228 - hr[i], ax->b, hr[i], C_REGEN);
+    break;
+  case E_DRUCK: {
+    const int dm = (A->dicke_d - 1) / 2;            // 0.31.0: baro centred on the pressure value like the time lines (up to 2 px it stays as before)
+    for (int i = 0; d && A->luftdruck && !A->druckvoll && i < ax->n; i++) {   // baro dashed; columns do not overlap, order does not matter
+      const int b = druck_H(H0 + i);
+      if (b != FEHLT) flaeche(ax->x0 + ax->p * i, druck_y(b) - dm, ax->b, A->dicke_d, C_DRUCK);
     }
-  if (A->tageslinie) {                              // horizontal, centred; solid or dashed (4 on, 4 off)
-    const int yl = zeile_von_minute(jm) - (A->dicke_h - 1) / 2;
-    if (A->voll_h) lr[nh++] = GRect(0, yl, 200, A->dicke_h);
-    else for (int x = 0; x < 200; x += 8) lr[nh++] = GRect(x, yl, 4, A->dicke_h);
+    if (d && A->luftdruck && A->druckvoll) {      // baro continuous: line through the hourly values (column centre), horizontal at the edges
+      int px = -1, py = 0;
+      for (int i = 0; i < ax->n; i++) {
+        const int b = druck_H(H0 + i);
+        if (b == FEHLT) continue;
+        const int x = ax->x0 + ax->p * i + ax->b / 2, y = druck_y(b) - dm;
+        linie(px < 0 ? 0 : px, px < 0 ? y : py, x, y, A->dicke_d, C_DRUCK);
+        px = x; py = y;
+      }
+      if (px >= 0) linie(px, py, 199, py, A->dicke_d, C_DRUCK);
+    }
+    break;
   }
-  const int rel = achse_rel(jm), xj = ax->x0 + rel * ax->p / 60;   // 04–20 h: 12 px per hour, 04:00 at the left border; 00–24 h: 8 px
-                                                                    // from x 6; 16–08 h: like 04–20 h from 16:00
-  const bool senkrecht = A->zeitmarke && (A->achse == 1 || (rel >= 0 && xj <= 198));
-  const int l0 = xj - (A->dicke_v - 1) / 2, l1 = l0 + A->dicke_v;
-  if (senkrecht) {                                  // vertical, centred; dashed or solid
-    if (A->voll_v) lr[nh + nv++] = GRect(l0, 0, A->dicke_v, 228);
-    else for (int y = 0; y < 228; y += 8) lr[nh + nv++] = GRect(l0, y, A->dicke_v, 4);
-  }
-  if (A->rahmen_z)
+  case E_BALKEN:                                    // time across the full width; one half per block (x 0–99 / 100–199), rows 1 and 5 only when on
+    if (A->balken & 256) flaeche(0, B_OBEN, 200, B_UNTEN - B_OBEN, C_BALKEN);
+    for (int r = 0; r < 4; r++)
+      for (int sei = 0; sei < 2; sei++)
+        if (an[r] && (A->balken >> (2 * r + sei) & 1)) flaeche(100 * sei, B0[r], 100, B1[r] - B0[r], farbe(F_BLOCK_B[2 * r + sei]));
+    break;
+  case E_STREIFEN:                                  // sunrise and sunset stripes (0.26.0)
+    if (d && A->sonne && A->streifen)
+      for (int i = 0; i < 2; i++) {
+        const int m = sonne_min(d, i);
+        if (m < 0) continue;
+        const int ys = zeile_von_minute(m) - (A->dicke_s - 1) / 2;
+        const GColor c = farbe(i ? F_S_UNTER : F_S_AUF);
+        if (A->streifen_voll) flaeche(0, ys, 200, A->dicke_s, c);
+        else for (int x = 0; x < 200; x += 8) flaeche(x, ys, 4, A->dicke_s, c);
+      }
+    break;
+  case E_LINIEN: {
+    // Time lines: horizontal first, then vertical. Since 0.19.0 as a list of rectangles: optionally a frame around all pieces
+    // first, then the faces — so a cross gets one outline
+    GRect lr[64]; int nh = 0, nv = 0;
+    if (A->tageslinie) {                            // horizontal, centred; solid or dashed (4 on, 4 off)
+      const int yl = zeile_von_minute(jm) - (A->dicke_h - 1) / 2;
+      if (A->voll_h) lr[nh++] = GRect(0, yl, 200, A->dicke_h);
+      else for (int x = 0; x < 200; x += 8) lr[nh++] = GRect(x, yl, 4, A->dicke_h);
+    }
+    const int rel = achse_rel(jm), xj = ax->x0 + rel * ax->p / 60;   // 04–20 h: 12 px per hour, 04:00 at the left border; 00–24 h: 8 px
+                                                                      // from x 6; 16–08 h: like 04–20 h from 16:00
+    const bool senkrecht = A->zeitmarke && (A->achse == 1 || (rel >= 0 && xj <= 198));
+    const int l0 = xj - (A->dicke_v - 1) / 2, l1 = l0 + A->dicke_v;
+    if (senkrecht) {                                // vertical, centred; dashed or solid
+      if (A->voll_v) lr[nh + nv++] = GRect(l0, 0, A->dicke_v, 228);
+      else for (int y = 0; y < 228; y += 8) lr[nh + nv++] = GRect(l0, y, A->dicke_v, 4);
+    }
+    if (A->rahmen_z)
+      for (int i = 0; i < nh + nv; i++)
+        flaeche(lr[i].origin.x - 1, lr[i].origin.y - 1, lr[i].size.w + 2, lr[i].size.h + 2, farbe(F_RAHMEN_Z));
     for (int i = 0; i < nh + nv; i++)
-      flaeche(lr[i].origin.x - 1, lr[i].origin.y - 1, lr[i].size.w + 2, lr[i].size.h + 2, farbe(F_RAHMEN_Z));
-  for (int i = 0; i < nh + nv; i++)
-    flaeche(lr[i].origin.x, lr[i].origin.y, lr[i].size.w, lr[i].size.h, i < nh ? farbe(F_TLINIE) : C_JETZT);
-  if (senkrecht && A->regen_vorn) {               // rain cuts through the line (and frame): drawn again on top, but not over bars
-    const int r0 = A->rahmen_z ? l0 - 1 : l0, r1 = A->rahmen_z ? l1 + 1 : l1;
-    for (int i = 0; i < ax->n; i++) {
-      const int c0 = ax->x0 + ax->p * i, c1 = c0 + ax->b;   // column i
-      for (int x = r0 > c0 ? r0 : c0; x < (r1 < c1 ? r1 : c1); x++) {
-        if (x < 0 || x >= 200) continue;
-        int y0 = -1;                                // draw vertical runs without bars
-        for (int y = 228 - hr[i]; y <= 228; y++) {
-          const bool frei = y < 228 && !unter_balken(x, y) && !vor_regen(d, y);
-          if (frei && y0 < 0) y0 = y;
-          if (!frei && y0 >= 0) { flaeche(x, y0, 1, y - y0, C_REGEN); y0 = -1; }
+      flaeche(lr[i].origin.x, lr[i].origin.y, lr[i].size.w, lr[i].size.h, i < nh ? farbe(F_TLINIE) : C_JETZT);
+    // Rain cuts through the line (and frame): drawn again on top — only when the rain lies behind the lines. Whatever lies between
+    // them keeps covering it: bars, day and twilight; columns in between hide the rain anyway (0.33.0, before: always so)
+    if (senkrecht && A->regen_vorn && ebene_pos(E_REGEN) < e && !(A->saeulen && dazwischen(E_SAEULEN, E_REGEN, E_LINIEN))) {
+      const bool ob = dazwischen(E_BALKEN, E_REGEN, E_LINIEN), oh = dazwischen(E_HIMMEL, E_REGEN, E_LINIEN);
+      const int r0 = A->rahmen_z ? l0 - 1 : l0, r1 = A->rahmen_z ? l1 + 1 : l1;
+      for (int i = 0; i < ax->n; i++) {
+        const int c0 = ax->x0 + ax->p * i, c1 = c0 + ax->b;   // column i
+        for (int x = r0 > c0 ? r0 : c0; x < (r1 < c1 ? r1 : c1); x++) {
+          if (x < 0 || x >= 200) continue;
+          int y0 = -1;                              // draw vertical runs without what covers the rain
+          for (int y = 228 - hr[i]; y <= 228; y++) {
+            const bool frei = y < 228 && !(ob && unter_balken(x, y)) && !(oh && tag_zeile(d, y));
+            if (frei && y0 < 0) y0 = y;
+            if (!frei && y0 >= 0) { flaeche(x, y0, 1, y - y0, C_REGEN); y0 = -1; }
+          }
         }
       }
     }
+    break;
   }
-
-  char z[24];   // 4 digits; room for the compiler, which assumes int ranges
-  s_h12 = s_zeitformat == 2 || (s_zeitformat == 0 && !clock_is_24h_style());   // 12-hour time (0.30.0): no leading zero
-  if (s_h12) snprintf(z, sizeof z, "%2d%02d", (lokal.tm_hour + 11) % 12 + 1, lokal.tm_min);
-  else snprintf(z, sizeof z, "%02d%02d", lokal.tm_hour, lokal.tm_min);
-  const GColor kante = farbe(F_KANTE), haupt = farbe(F_HAUPT);   // main digit colour (0.30.0): time and blocks inherit it
-  s_kante = farbe_oder(F_KANTE_ZEIT, kante);        // 3D edge per row and block (0.28.0), otherwise the common one
-  const GColor zc = farbe_oder(F_ZIFFER, haupt);
-  zeile(z, Y_ZEIT, zc, zc);
-  for (int r = 0; r < 4; r++) {
-    if (!an[r]) continue;
-    for (int sei = 0; sei < 2; sei++) {
-      const int k = 2 * r + sei, w = A->block[k], x = SPALTE[2 * sei];
-      const GColor c = farbe_oder(F_BLOCK_Z[k], haupt);
-      s_kante = farbe_oder(F_KANTE_B + k, kante);
-      const bool frei = sei == 0 && A->block[k + 1] == W_LEER && A->zweit[k + 1] == W_LEER;   // the right block is empty
-      if (w == W_TEXT) {                              // free text: one character per cell; the left block runs into an empty right one
-        text_zeichnen(s_text[A - s_th][k], sei, frei, RY[r], c);
-        continue;
+  case E_ZEIT: {
+    char z[24];   // 4 digits; room for the compiler, which assumes int ranges
+    if (s_h12) snprintf(z, sizeof z, "%2d%02d", (lokal.tm_hour + 11) % 12 + 1, lokal.tm_min);
+    else snprintf(z, sizeof z, "%02d%02d", lokal.tm_hour, lokal.tm_min);
+    s_kante = farbe_oder(F_KANTE_ZEIT, kante);      // 3D edge per row and block (0.28.0), otherwise the common one
+    s_rand = farbe_oder(F_RAND_ZEIT, rand0);        // outline likewise (0.32.0)
+    const GColor zc = farbe_oder(F_ZIFFER, haupt);
+    zeile(z, Y_ZEIT, zc, zc);
+    break;
+  }
+  case E_BLOECKE:
+    for (int r = 0; r < 4; r++) {
+      if (!an[r]) continue;
+      for (int sei = 0; sei < 2; sei++) {
+        const int k = 2 * r + sei, w = A->block[k], x = SPALTE[2 * sei];
+        const GColor c = farbe_oder(F_BLOCK_Z[k], haupt);
+        s_kante = farbe_oder(F_KANTE_B + k, kante);
+        s_rand = farbe_oder(F_RAND_B + k, rand0);
+        const bool frei = sei == 0 && A->block[k + 1] == W_LEER && A->zweit[k + 1] == W_LEER;   // the right block is empty
+        if (w == W_TEXT) {                            // free text: one character per cell; the left block runs into an empty right one
+          text_zeichnen(s_text[A - s_th][k], sei, frei, RY[r], c);
+          continue;
+        }
+        if (w == W_WOCHENTAG) {                       // 0.30.0: two letters like the free text
+          for (int i = 0; i < 2; i++) buchstabe(WOCHENTAG[s_deutsch][lokal.tm_wday % 7][i], SPALTE[2 * sei + i], RY[r], c);
+          continue;
+        }
+        if (w >= W_AKKU && w <= W_BOEEN) {            // 0.30.0: numbers, from 100 on into an empty right block
+          char zz[4];
+          const int n = zahl_zellen(w, neu_wert(w, t, jm, &lokal), frei, zz);
+          for (int i = 0; i < n; i++) buchstabe(zz[i], SPALTE[2 * sei + i], RY[r], c);
+          continue;
+        }
+        if (w == W_TKURVE || w == W_BKURVE || w == W_BARO_HPA) { block_bild(w, t, jm, now, x, RY[r], c); continue; }
+        if (ist_zelle(w)) {                           // symbols per cell; a single one sits centred in the block
+          const int s1 = w == W_LEER ? -1 : zell_symbol(w, t, jm, now), w2 = A->zweit[k];
+          if (w2 == W_LEER) { if (s1 >= 0) symbol(s1, x + (ZB + SPALTE[1] - SYM_GROESSE) / 2, RY[r], c); continue; }
+          const int s2 = zell_symbol(w2, t, jm, now);
+          if (s1 >= 0) symbol(s1, x, RY[r], c);
+          if (s2 >= 0) symbol(s2, SPALTE[2 * sei + 1], RY[r], c);
+          continue;
+        }
+        char b2[2];
+        if (block_zellen(A->block[k], &lokal, d, b2)) minus_bei_eins(SPALTE[2 * sei], RY[r], c);
+        ziffer(b2[0], SPALTE[2 * sei], RY[r], c);
+        ziffer(b2[1], SPALTE[2 * sei + 1], RY[r], c);
       }
-      if (w == W_WOCHENTAG) {                         // 0.30.0: two letters like the free text
-        for (int i = 0; i < 2; i++) buchstabe(WOCHENTAG[s_deutsch][lokal.tm_wday % 7][i], SPALTE[2 * sei + i], RY[r], c);
-        continue;
-      }
-      if (w >= W_AKKU && w <= W_BOEEN) {              // 0.30.0: numbers, from 100 on into an empty right block
-        char zz[4];
-        const int n = zahl_zellen(w, neu_wert(w, t, jm, &lokal), frei, zz);
-        for (int i = 0; i < n; i++) buchstabe(zz[i], SPALTE[2 * sei + i], RY[r], c);
-        continue;
-      }
-      if (w == W_TKURVE || w == W_BKURVE || w == W_BARO_HPA) { block_bild(w, t, jm, now, x, RY[r], c); continue; }
-      if (ist_zelle(w)) {                             // symbols per cell; a single one sits centred in the block
-        const int s1 = w == W_LEER ? -1 : zell_symbol(w, t, jm, now), w2 = A->zweit[k];
-        if (w2 == W_LEER) { if (s1 >= 0) symbol(s1, x + (ZB + SPALTE[1] - SYM_GROESSE) / 2, RY[r], c); continue; }
-        const int s2 = zell_symbol(w2, t, jm, now);
-        if (s1 >= 0) symbol(s1, x, RY[r], c);
-        if (s2 >= 0) symbol(s2, SPALTE[2 * sei + 1], RY[r], c);
-        continue;
-      }
-      char b2[2];
-      if (block_zellen(A->block[k], &lokal, d, b2)) minus_bei_eins(SPALTE[2 * sei], RY[r], c);
-      ziffer(b2[0], SPALTE[2 * sei], RY[r], c);
-      ziffer(b2[1], SPALTE[2 * sei + 1], RY[r], c);
     }
+    break;
   }
 }
 
@@ -1037,11 +1078,16 @@ static void empfangen(DictionaryIterator *it, void *ctx) {
     }
     if ((t = dict_find(it, n ? MESSAGE_KEY_SCHALTER_N : MESSAGE_KEY_SCHALTER))) {   // 0.24.0: switches as bits, room for more
       const int32_t v = t->value->int32;
-      s_th[n].saeulen = v & 1; s_th[n].regen_hinter = v >> 1 & 1;
+      s_th[n].saeulen = v & 1;                     // bit 1 (rain behind the day, 0.25.0) unused since 0.33.0: layer order
       s_th[n].s_tag = v >> 2 & 1; s_th[n].s_daem = v >> 3 & 1; s_th[n].s_nacht = v >> 4 & 1;
       s_th[n].streifen = v >> 5 & 1; s_th[n].streifen_voll = v >> 6 & 1;
       s_th[n].achse = (v >> 7 & 3) < 3 ? v >> 7 & 3 : 0;   // 0.28.0 bit 7: 00–24 h; 0.29.0 value 2: 16–08 h
       neu = true;
+    }
+    if ((t = dict_find(it, n ? MESSAGE_KEY_EBENEN_N : MESSAGE_KEY_EBENEN)) && t->length == E_ANZAHL) {   // 0.33.0: layer order
+      bool da[E_ANZAHL] = { false }, ok = true;     // only a complete order: every layer exactly once
+      for (int i = 0; i < E_ANZAHL; i++) { const int e = t->value->data[i]; if (e >= E_ANZAHL || da[e]) ok = false; else da[e] = true; }
+      if (ok) { memcpy(s_th[n].ebenen, t->value->data, E_ANZAHL); neu = true; }
     }
     if ((t = dict_find(it, n ? MESSAGE_KEY_TEXTE_N : MESSAGE_KEY_TEXTE))) {   // 0.28.0: per block length, then the character codes
       memset(s_text[n], 0, sizeof s_text[n]);
