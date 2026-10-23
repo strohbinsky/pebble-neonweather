@@ -25,7 +25,9 @@ static const struct { const char *name; int key; bool liste; } SCHLUESSEL[] = {
   { "TEXTE", MESSAGE_KEY_TEXTE, true }, { "TEXTE_N", MESSAGE_KEY_TEXTE_N, true },   // 0.28.0
   { "NACHTMODUS", MESSAGE_KEY_NACHTMODUS, false }, { "TEST", MESSAGE_KEY_TEST, false },   // TEST 1: the other theme (0.29.0)
   { "GLOBAL", MESSAGE_KEY_GLOBAL, false },   // 0.30.0: time format, weekday language
-  { "EBENEN", MESSAGE_KEY_EBENEN, true }, { "EBENEN_N", MESSAGE_KEY_EBENEN_N, true } };   // 0.33.0: layer order
+  { "EBENEN", MESSAGE_KEY_EBENEN, true }, { "EBENEN_N", MESSAGE_KEY_EBENEN_N, true },   // 0.33.0: layer order
+  { "SYMFARBEN", MESSAGE_KEY_SYMFARBEN, true }, { "SYMFARBEN_N", MESSAGE_KEY_SYMFARBEN_N, true },   // 0.34.0: colours per symbol
+  { "ZONE", MESSAGE_KEY_ZONE, true } };   // 0.36.0: time zone abbreviations from the phone
 static void uhr_laden(const char *pfad) {
   static char zeile[4096];
   char name[32];

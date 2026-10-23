@@ -29,7 +29,8 @@ function wetterHolen(lat, lon) {
         if (xhr.status !== 200) return fehler(4, 'HTTP ' + xhr.status);
         var j = JSON.parse(xhr.responseText), p = logik.wetterPaket(j, Date.now());
         laeuft = false;
-        senden({ WETTER: p.bytes, WETTER2: logik.wetter2Paket(j, Date.now()), TAG: p.tag, STAND: Math.floor(Date.now() / 1000) });   // WETTER2 since 0.30.0
+        senden({ WETTER: p.bytes, WETTER2: logik.wetter2Paket(j, Date.now()), TAG: p.tag, STAND: Math.floor(Date.now() / 1000),   // WETTER2 since 0.30.0
+                 ZONE: logik.zonenBytes(Date.now(), sprache()) });   // 0.36.0: time zone abbreviations
         log('weather sent, day ' + p.tag);
       } catch (e) { fehler(3, 'parsing: ' + e); }
     };
@@ -56,8 +57,6 @@ function abrufen() {
 // ---------- Settings: colours (since 0.5.0), time bar and pressure position (since 0.7.0), language (since 0.27.0) ----------
 // Page: src/seite/einstellungen.html, turned into the module seite.js by tools/seite_erzeugen.py (runs in bauen.sh)
 var SEITE = require('./seite');
-var SYMBOLE = require('./symbole');   // since 0.22.0: symbols for the preview on the settings page
-var SCHRIFT = require('./schrift');   // since 0.28.0: font of the free text for the preview
 
 function gespeichert(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
 function farben() {
@@ -76,13 +75,9 @@ function glob() { return { zeitformat: logik.globalPruefen(gespeichert('global')
 Pebble.addEventListener('showConfiguration', function () {
   var zustand = { tag: tag(), nacht: nacht(), presets: logik.kompaktListe(presets()), vorlagen: logik.kompaktListe(logik.vorlagenBasis()),   // night looks: the page
                   std: logik.STD, sprache: sprache(), global: logik.globalPruefen(gespeichert('global')) };
-  var html = SEITE.split('/*ZUSTAND*/null').join(JSON.stringify(zustand))   // split/join: every occurrence, no $ patterns
-                  .split('/*LISTE*/null').join(JSON.stringify(logik.FARBEN))
-                  .split('/*LAGEN*/null').join(JSON.stringify(logik.DRUCKLAGEN))
-                  .split('/*INHALTE*/null').join(JSON.stringify(logik.INHALTE))
-                  .split('/*BLOECKE*/null').join(JSON.stringify(logik.BLOECKE))
-                  .split('/*SYMBOLE*/null').join(JSON.stringify(SYMBOLE))
-                  .split('/*SCHRIFT*/null').join(JSON.stringify(SCHRIFT));
+  // since 0.34.0 a loader page with the packed page script (lists, symbols and font filled in at build time); only the settings
+  // go in here — "<" escaped, so a preset name cannot close the script
+  var html = SEITE.split('/*ZUSTAND*/null').join(JSON.stringify(zustand).replace(/</g, '\\u003c'));   // split/join: no $ patterns
   Pebble.openURL(logik.seitenUrl(html));
 });
 
@@ -109,6 +104,6 @@ Pebble.addEventListener('webviewclosed', function (e) {
 
 // On start: report ready and send the settings right away (they apply without opening the settings page too)
 Pebble.addEventListener('ready', function () {
-  var d = logik.anUhr(tag(), nacht(), glob()); d.BEREIT = 1; senden(d);
+  var d = logik.anUhr(tag(), nacht(), glob()); d.BEREIT = 1; d.ZONE = logik.zonenBytes(Date.now(), sprache()); senden(d);
 });
 Pebble.addEventListener('appmessage', function (e) { if (e.payload.ANFRAGE !== undefined) abrufen(); });

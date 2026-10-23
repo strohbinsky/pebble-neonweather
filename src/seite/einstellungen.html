@@ -16,6 +16,7 @@
 <title>Neonweather</title>
 <style>
 *{box-sizing:border-box}body{font-family:sans-serif;margin:0;padding:16px;background:#111;color:#eee}
+body.pc{max-width:560px;margin:0 auto}body.pc #v{width:400px;height:456px}
 h1{font-size:20px;margin:0 0 10px}
 #v{display:block;margin:0 auto;width:200px;height:228px;image-rendering:pixelated;border-radius:6px}
 .hinweis{text-align:center;color:#888;font-size:12px;margin:4px 0 0}.info{color:#aaa;font-size:13px;margin:4px 2px 10px}
@@ -29,6 +30,13 @@ h1{font-size:20px;margin:0 0 10px}
 .z small{margin-left:auto;color:#888;font-family:monospace}.o small{display:block;color:#888;font-size:13px}
 .pf{margin-left:auto;display:flex;gap:6px}.pf b{width:38px;height:34px;line-height:34px;text-align:center;border-radius:8px;background:#333;font-weight:normal;cursor:pointer}
 .pf b.lz{background:none;cursor:default}.eb{padding:6px 12px}
+.ib{display:flex;align-items:center;gap:8px;flex:1;min-height:40px;padding:4px 10px;border-radius:8px;background:#333;cursor:pointer;font-size:15px}
+.ib b{margin-left:auto;font-weight:normal;color:#aaa}.ib svg{flex:none}
+.pk{background:#161616;border-radius:10px;padding:6px 8px 8px;margin:0 0 8px}.pk .u{margin:8px 2px 4px}
+.pk .g{display:flex;flex-wrap:wrap;gap:6px}.pk .g b{padding:8px 10px;background:#333;border-radius:8px;font-weight:normal;font-size:14px;cursor:pointer}
+.sy{display:inline-flex;position:relative;background:#000;border-radius:8px;padding:2px;cursor:pointer;border:2px solid #000}
+.g b.a,.sy.a{outline:2px solid #FF55FF}.sy i{position:absolute;right:3px;top:3px;width:7px;height:7px;border-radius:50%;background:#FF55FF}
+.k.o{background:linear-gradient(to top right,transparent 45%,#f55 45%,#f55 55%,transparent 55%) !important;border:1px solid #666}
 .w{opacity:.45}.x{margin-left:8px;color:#FF55FF;font-size:20px;padding:0 4px}
 .k{width:40px;height:24px;border-radius:4px;flex:none;border:1px solid #666;display:inline-block}.k.e{border:2px dashed #999}
 .o .r{width:22px;height:22px;border-radius:50%;border:2px solid #888;flex:none}.o .r.a{background:#AA00AA;border-color:#FF55FF}
@@ -94,9 +102,14 @@ z.vorlagen = (z.vorlagen || []).reduce(function (l, p) {
 var glob = { zeitformat: z.global && (z.global.zeitformat === 1 || z.global.zeitformat === 2) ? z.global.zeitformat : 0 };   // the same day and night
 var vw = 0, vzeit = null;                          // preview only (0.30.0): sample weather, sample time in minutes (null = default)
 var seite = "tag", offen = null, sek = {}, wahl = null, meldung = "", P = [], S = ["00", "55", "AA", "FF"], NAME = {};
+// Configurator on the computer (0.35.0, tools/seite_erzeugen.py → neonweather-konfigurator.html): no phone; "Save" becomes a preset
+// code to import on the phone (Presets → Import). The state stays in the URL fragment and in localStorage
+var PC = !!z.pc, pcName = "", pcAn = false, pcMeldung = "";
 // 0.30.0: the state lives in the URL fragment too — should the phone's web view reload the page (keyboard), nothing is lost
 try {
   var hs = typeof location !== "undefined" && location.hash && location.hash.length > 1 ? JSON.parse(decodeURIComponent(location.hash.substring(1))) : null;
+  if (!hs && PC && typeof localStorage !== "undefined") hs = JSON.parse(localStorage.getItem("neonweather-konfigurator") || "null");
+  if (hs && PC && typeof hs.pcName === "string") pcName = hs.pcName;
   if (hs && hs.tag && hs.nacht && hs.presets) {
     z.tag = hs.tag; z.nacht = hs.nacht; z.presets = hs.presets.map(function (p) { return { name: p.name, tag: voll(p.tag), nacht: p.nacht }; });
     sp = hs.sp === "de" ? "de" : "en"; seite = hs.seite === "nacht" ? "nacht" : "tag"; if (hs.glob) glob = hs.glob;
@@ -107,6 +120,10 @@ function merken() {
     if (typeof history !== "undefined" && history.replaceState)
       history.replaceState(null, "", "#" + encodeURIComponent(JSON.stringify({ tag: z.tag, nacht: z.nacht, presets: kompaktListe(), sp: sp, seite: seite, glob: glob })));
   } catch (e) {}
+  try {
+    if (PC && typeof localStorage !== "undefined")
+      localStorage.setItem("neonweather-konfigurator", JSON.stringify({ tag: z.tag, nacht: z.nacht, presets: kompaktListe(), sp: sp, seite: seite, glob: glob, pcName: pcName }));
+  } catch (e) {}
 }
 for (var r = 0; r < 4; r++) for (var g = 0; g < 4; g++) for (var b = 0; b < 4; b++) P.push(S[r] + S[g] + S[b]);
 var ERB = {};                                  // colours that may be empty = inherit (0.28.0): 3D edge per block, symbol families;
@@ -114,9 +131,14 @@ L.forEach(function (e) { NAME[e[0]] = e[1]; if (e[2] === "") ERB[e[0]] = true; }
 var ZIF = {};                                  // digit colours that inherit the main colour (0.30.0)
 ["ziffer", "z_auf", "z_auf2", "z_tag", "z_monat", "z_min", "z_max", "z_unter", "z_unter2"].forEach(function (k) { ZIF[k] = true; });
 // symbol families (0.28.0) with their 3D edge (0.30.0); index = sym_familie() in main.c
-var FAM = [["sf_pfeil", "sk_pfeil"], ["sf_schirm", "sk_schirm"], ["sf_warnung", "sk_warnung"], ["sf_wetter", "sk_wetter"], ["sf_mond", "sk_mond"],
-           ["sf_alt", "sk_alt"], ["sf_freude", "sk_freude"]];
+var FAM = [["sf_pfeil", "sk_pfeil", "sr_pfeil"], ["sf_schirm", "sk_schirm", "sr_schirm"], ["sf_warnung", "sk_warnung", "sr_warnung"],
+           ["sf_wetter", "sk_wetter", "sr_wetter"], ["sf_mond", "sk_mond", "sr_mond"], ["sf_alt", "sk_alt", "sr_alt"],
+           ["sf_freude", "sk_freude", "sr_freude"]];   // 0.34.0: primary, secondary, outline
+function erbOk(k) { return ERB[k] || /^sy\d+[psr]$/.test(k); }       // may be empty (inherit); colours per symbol since 0.34.0
+function ohneOk(k) { return /^sr_/.test(k) || /^sy\d+r$/.test(k); }   // may be "none": outlines of symbols and families (0.34.0)
+var symWahl = null;                                // symbol whose colours are open under "Digits & symbols" (0.34.0)
 var SCHWELLEN = ["0.1", "0.2", "0.3", "0.5", "1.0"];
+var SVGC = {};                                     // icons once per symbol and colours (0.34.0)
 var REGEN = [["Full height", "columns from the bottom; on the fixed scale 1 mm/h reaches the time bar (umbrella time)"],
              ["Bottom", "a strip below row 4; on the fixed scale half height = 1 mm/h"], ["Off", "no rain columns"]];
 
@@ -225,6 +247,22 @@ var DE = {
   "Gusts now": "Böen jetzt", "Battery low": "Akku schwach", "Phone disconnected": "Handy getrennt", "Battery empty": "Akku leer",
   "Heart": "Herz", "Smiley": "Smiley", "Star": "Stern", "Check mark": "Haken", "Flower": "Blume", "Music note": "Note",
   "Four-leaf clover": "Kleeblatt", "Coffee": "Kaffee",
+  "Code for the Pebble": "Code für die Pebble", "My look": "Mein Look", "Copy": "Kopieren", "Name, e.g. My look": "Name, z. B. Mein Look",
+  "Copied — now paste it on the phone under Presets → Import.": "Kopiert — jetzt am Handy unter Presets → Importieren einfügen.",
+  "On the phone: Pebble app → Neonweather → settings → Presets → Import, paste the code, then load it — “for day & night” when it has a night look. Get the code across any way you like: shared clipboard, a note, a message to yourself. Time format and language stay on the phone.":
+    "Am Handy: Pebble-App → Neonweather → Einstellungen → Presets → Importieren, Code einfügen, dann laden — „für Tag und Nacht“, wenn er ein Nachtbild hat. Wie der Code aufs Handy kommt, ist egal: geteilte Zwischenablage, eine Notiz, eine Nachricht an dich selbst. Zeitformat und Sprache stellst du am Handy ein.",
+  "Configurator: put your look together here, then “Code for the Pebble” at the bottom gives you a code to import on the phone.":
+    "Konfigurator: Hier den Look zusammenstellen, dann gibt „Code für die Pebble“ ganz unten einen Code, den du am Handy importierst.",
+  "Time zone": "Zeitzone", "Primary": "Primär", "Secondary": "Sekundär", "no outline": "kein Rand", "Symbols": "Symbole", "Symbol families": "Symbolfamilien",
+  "3D edge on symbols": "3D-Kante bei Symbolen", "off = flat icons; digits and letters always keep theirs": "aus = flache Bildchen; Ziffern und Buchstaben behalten sie immer",
+  "Primary = the shape, secondary = the details (eyes, glasses, the dark side of the moon) and the 3D edge when it’s on, outline = the rim around every part. Empty = inherit: symbol → family → block.":
+    "Primär = die Form, Sekundär = die Details (Augen, Brille, die dunkle Mondseite) und die 3D-Kante, wenn sie an ist, Rand = um jedes Teil. Leer = übernehmen: Symbol → Familie → Block.",
+  "Wherever a symbol shows up — the moon of “Weather now” at night too.": "Wo immer ein Symbol auftaucht — auch der Mond von „Wetter jetzt“ in der Nacht.",
+  "Single symbols": "Einzelne Symbole", "Tap a symbol to give it colors of its own; a dot marks the ones that have.": "Ein Symbol antippen, um ihm eigene Farben zu geben; ein Punkt markiert die mit eigenen.",
+  "family color": "Familienfarbe", "family secondary": "Sekundär der Familie", "family outline": "Rand der Familie", "block outline": "Rand des Blocks",
+  "Outline baro arrows": "Rand Baro-Pfeile", "Outline umbrella": "Rand Schirm", "Outline warnings": "Rand Warnungen", "Outline weather": "Rand Wetter",
+  "Outline moon": "Rand Mond", "Outline status": "Rand Status", "Outline heart, smiley …": "Rand Herz, Smiley …", "Butterfly": "Schmetterling", "Sleeping smiley": "Schlafender Smiley",
+  "Alpaca with glasses": "Alpaka mit Brille", "Alpaca with sunglasses": "Alpaka mit Sonnenbrille", "Fluffy cloud": "Wölkchen",
   "Showers": "Schauer", "Dry": "Trocken", "Thunder": "Gewitter", "Frost": "Frost", "Preview at": "Vorschau um"
 };
 [1, 2, 4, 5].forEach(function (r) {
@@ -243,7 +281,7 @@ function uebersetzen(h) {
     var k = t.trim();
     return DE.hasOwnProperty(k) && tag.indexOf("class='pn'") < 0 && tag.indexOf("<textarea") < 0 ? tag + t.split(k).join(DE[k]) : m;
   })
-          .replace(/ (label|placeholder)='([^']*)'/g, function (m, a, t) { return DE.hasOwnProperty(t) ? " " + a + "='" + DE[t] + "'" : m; });
+          .replace(/ (label|placeholder|title)='([^']*)'/g, function (m, a, t) { return DE.hasOwnProperty(t) ? " " + a + "='" + DE[t] + "'" : m; });
 }
 
 // Value in the view shown: at night the changed value, otherwise the day's
@@ -284,41 +322,64 @@ function radios(k, liste, titel) {
 }
 // Inherited colour (0.28.0): empty; the 3D edge per block shows the common 3D edge (the outline per block the common outline, 0.32.0), a symbol family the block colour (no swatch);
 // since 0.30.0 digit colours show the main colour, the 3D edge of a family "block 3D edge" (no swatch)
-function erbText(k) { return /^kante_/.test(k) ? "like 3D edge" : /^rand_/.test(k) ? "like digit outline" : /^sk_/.test(k) ? "block 3D edge" : ZIF[k] ? "main color" : "block color"; }
+function erbText(k) {
+  return /^kante_/.test(k) ? "like 3D edge" : /^rand_/.test(k) ? "like digit outline" : /^sk_/.test(k) ? "block 3D edge" : /^sr_/.test(k) ? "block outline" :
+         /^sy\d+p$/.test(k) ? "family color" : /^sy\d+s$/.test(k) ? "family secondary" : /^sy\d+r$/.test(k) ? "family outline" : ZIF[k] ? "main color" : "block color";
+}
 function farbHex(k) {
   var c = eff("farben", k);
+  if (c === "none") return null;
   return c !== "" ? c : /^kante_/.test(k) ? eff("farben", "kante") : /^rand_/.test(k) ? eff("farben", "rand") : ZIF[k] ? eff("farben", "haupt") : null;
 }
-function feld(k) { var c = eff("farben", k), h = farbHex(k); return "<span class='k" + (c === "" ? " e" : "") + "' style='background:" + (h ? "#" + h : "transparent") + "'></span>"; }
+function feld(k) {                                // "none" (0.34.0): crossed out
+  var c = eff("farben", k), h = farbHex(k);
+  return "<span class='k" + (c === "" ? " e" : c === "none" ? " o" : "") + "' style='background:" + (h ? "#" + h : "transparent") + "'></span>";
+}
 function palette(k) {
   if (offen !== k) return "";
   var c = eff("farben", k), h = "<div class='p'>";
-  if (ERB[k]) h += "<span class='f fa" + (c === "" ? " a" : "") + "' data-c=''>" + erbText(k) + "</span>";
+  if (erbOk(k)) h += "<span class='f fa" + (c === "" ? " a" : "") + "' data-c=''>" + erbText(k) + "</span>";
+  if (ohneOk(k)) h += "<span class='f fa" + (c === "none" ? " a" : "") + "' data-c='none'>no outline</span>";
   P.forEach(function (p) { h += "<span class='f" + (p === c ? " a" : "") + "' data-c='" + p + "' style='background:#" + p + "'></span>"; });
   return h + "</div>";
 }
 function farbe(k) {
   var c = eff("farben", k);
   return "<div class='z" + blass("farben", k) + "' data-k='" + k + "'>" + feld(k) + NAME[k] +
-         "<small>" + (c === "" ? erbText(k) : "#" + c) + "</small>" + marke("farben", k) + "</div>" + palette(k);
+         "<small>" + (c === "" ? erbText(k) : c === "none" ? "no outline" : "#" + c) + "</small>" + marke("farben", k) + "</div>" + palette(k);
 }
 // Block: content, bar on/off, digit and bar colour in one card; at night one ↺ for all four values
 // Contents (0.22.0), numbers as enum W_… in main.c (fixed symbols from 64 since 0.23.0): numbers and "whole block" use both cells, symbols one
 // Since 0.30.0 in groups by topic: date and time, weather, watch (battery, steps, heart rate), whole block, smart, positive, fixed symbols
 var W_FEST = 64, W_TEXT = 19, W_FREUDE = W_FEST + 26, ALLE = IN.map(function (n, j) { return j; });
-var GRUPPEN = [["Date & time", [1, 2, 20, 5, 6, 7, 8]], ["Weather", [3, 4, 9, 24, 25, 26, 27, 28, 29]], ["Watch", [21, 22, 23]],
+var GRUPPEN = [["Date & time", [1, 2, 20, 5, 6, 7, 8, 32]], ["Weather", [3, 4, 9, 24, 25, 26, 27, 28, 29]], ["Watch", [21, 22, 23]],
                ["Whole block", [10, 18, 12, 19]], ["Smart symbols", [11, 13, 14, 15, 16, 17, 30, 31]],
                ["Positive symbols", ALLE.slice(W_FREUDE)], ["Fixed symbols", ALLE.slice(W_FEST, W_FREUDE)]];
 function zelle(w) { return w === 0 || w === 11 || (w >= 13 && w <= 17) || w === 30 || w === 31 || w >= W_FEST; }
-function auswahl(k, v, nurZelle) {
-  var h = "<select data-in='" + k + "'><option value='0'" + (v === 0 ? " selected" : "") + ">" + IN[0] + "</option>";
+// Content menu (0.34.0) instead of a select: a button with the current content, below the card tiles by group — symbols as
+// icons in the colours they get in this block, everything else as text. nurZelle: the right cell (symbols and empty only)
+var SMART = { 11: 0, 12: 0, 13: 5, 14: 7, 15: 12, 16: 17, 17: 9, 30: 24, 31: 25 };   // icon of a smart symbol
+function inhaltSym(w) { return w >= W_FEST ? w - W_FEST : SMART[w]; }
+function kachel(k, w, a, ff) {
+  var n = inhaltSym(w);
+  if (n === undefined) return "<b class='" + (a ? "a" : "") + "' data-iw='" + k + ":" + w + "'>" + IN[w] + "</b>";
+  return "<span class='sy" + (a ? " a" : "") + "' data-iw='" + k + ":" + w + "' title='" + attr(IN[w]) + "'>" + symSvg(n, ff(n), 40) + "</span>";
+}
+function auswahl(k, v, ff) {
+  var n = inhaltSym(v);
+  return "<span class='ib' data-pk='" + k + "'>" + (n !== undefined ? symSvg(n, ff(n), 30) : "") + "<span>" + IN[v] + "</span><b>" +
+         (offen === "pk:" + k ? "▴" : "▾") + "</b></span>";
+}
+function menue(k, v, nurZelle, ff) {
+  if (offen !== "pk:" + k) return "";
+  var h = "<div class='pk'><div class='g'>" + kachel(k, 0, v === 0, ff) + "</div>";
   GRUPPEN.forEach(function (gr) {
     if (nurZelle && !zelle(gr[1][0])) return;
-    h += "<optgroup label='" + gr[0] + "'>";
-    gr[1].forEach(function (j) { h += "<option value='" + j + "'" + (v === j ? " selected" : "") + ">" + IN[j] + "</option>"; });
-    h += "</optgroup>";
+    h += "<div class='u'>" + gr[0] + "</div><div class='g'>";
+    gr[1].forEach(function (j) { h += kachel(k, j, v === j, ff); });
+    h += "</div>";
   });
-  return h + "</select>";
+  return h + "</div>";
 }
 // Since 0.28.0 with a 3D edge per block (empty = the common one) and the free text, since 0.32.0 with an outline per block (empty = the
 // common digit outline). A curve block shows the curve's line, edge and outline instead (they apply wherever the curve shows up)
@@ -328,9 +389,13 @@ function block(i, titel) {
   var geaendert = eigen("optionen", b[0]) || eigen("optionen", b[1]) || eigen("farben", b[2]) || eigen("farben", b[3]) || eigen("optionen", b[5]) ||
                   eigen("farben", b[6]) || eigen("optionen", b[7]) || eigen("farben", b[8]);
   var fk = kv ? kv[0] : b[2], kk = kv ? kv[1] : b[6], rk = kv ? kv[2] : b[8];
+  var fb = "#" + (eff("farben", b[2]) || eff("farben", "haupt")), kb = "#" + (eff("farben", b[6]) || eff("farben", "kante")),
+      rb = "#" + (eff("farben", b[8]) || eff("farben", "rand"));
+  function ff(n) { return symFarben(n, fb, kb, rb); }   // icons in the colours of this block
   var h = "<div class='blk" + (seite === "nacht" && !geaendert ? " w" : "") + "'><div class='t'>" + titel +
           (seite === "nacht" ? (geaendert ? "<span class='x' data-reset='blk:" + i + "'>↺</span>" : " <small>as day</small>") : "") +
-          "</div><div class='zl'>" + auswahl(b[0], w, false) + "</div><div class='zl' style='margin-top:8px'>";   // 0.32.0: swatches in a row of their own
+          "</div><div class='zl'>" + auswahl(b[0], w, ff) + "</div>" + menue(b[0], w, false, ff) +
+          "<div class='zl' style='margin-top:8px'>";   // 0.32.0: swatches in a row of their own
   h += "<span class='mini' data-sw='" + b[1] + "'><span class='s" + (eff("optionen", b[1]) ? " a" : "") + "'></span>Bar</span>" +
        "<span class='mini' data-k='" + fk + "'>" + feld(fk) + (kv ? "Line" : "Color") + "</span>" +
        "<span class='mini' data-k='" + kk + "'>" + feld(kk) + "3D</span>" +
@@ -341,7 +406,8 @@ function block(i, titel) {
   if (w === W_TEXT) h += "<input class='tx' data-tx='" + b[7] + "' maxlength='4' value='" + attr(eff("optionen", b[7])) + "' placeholder='Your text'>" +
     "<p class='info' style='margin:6px 2px 0'>One character above each digit: 2 per block, 4 in the left block when the right one is empty. A–Z, 0–9, ÄÖÜ, - ! ? . , : ' + / = ° ♥ ( ) % _ — spaces move the text along.</p>";
   if (zelle(w))                                     // symbol or empty: second symbol in the right cell (otherwise a single one is centred)
-    h += "<div class='zl' style='margin-top:6px'><small style='color:#888;min-width:80px'>Right cell</small>" + auswahl(b[5], eff("optionen", b[5]), true) + "</div>";
+    h += "<div class='zl' style='margin-top:6px'><small style='color:#888;min-width:80px'>Right cell</small>" + auswahl(b[5], eff("optionen", b[5]), ff) + "</div>" +
+         menue(b[5], eff("optionen", b[5]), true, ff);
   return h + "</div>" + palette(fk) + palette(kk) + palette(rk) + palette(b[3]);
 }
 
@@ -352,12 +418,35 @@ function zeitformat() {
   return h + "</span></div>";
 }
 // Symbol family (0.30.0): colour and 3D edge in one card, at night one ↺ for both
+// Symbol family (0.30.0): primary, secondary (until 0.33.0 "3D edge") and since 0.34.0 the outline in one card; at night one ↺
 function famKarte(i) {
-  var f = FAM[i], ge = eigen("farben", f[0]) || eigen("farben", f[1]);
+  var f = FAM[i], ge = eigen("farben", f[0]) || eigen("farben", f[1]) || eigen("farben", f[2]);
   return "<div class='blk fk" + (seite === "nacht" && !ge ? " w" : "") + "'><div class='t'>" + NAME[f[0]] +
-    (seite === "nacht" ? (ge ? "<span class='x' data-reset='fam:" + i + "'>↺</span>" : " <small>as day</small>") : "") + "</div>" +
-    "<span class='mini' data-k='" + f[0] + "'>" + feld(f[0]) + "Color</span><span class='mini' data-k='" + f[1] + "'>" + feld(f[1]) + "3D</span></div>" +
-    palette(f[0]) + palette(f[1]);
+    (seite === "nacht" ? (ge ? "<span class='x' data-reset='fam:" + i + "'>↺</span>" : " <small>as day</small>") : "") + "</div><div class='zl'>" +
+    "<span class='mini' data-k='" + f[0] + "'>" + feld(f[0]) + "Primary</span><span class='mini' data-k='" + f[1] + "'>" + feld(f[1]) + "Secondary</span>" +
+    "<span class='mini' data-k='" + f[2] + "'>" + feld(f[2]) + "Outline</span></div></div>" + palette(f[0]) + palette(f[1]) + palette(f[2]);
+}
+// Single symbols (0.34.0): every symbol as an icon in its colours (on a black block); a dot marks own colours. Tap → its card
+function symEigen(n) { return ["p", "s", "r"].some(function (j) { return eff("farben", "sy" + n + j) !== ""; }); }
+function symGitter() {
+  var f0 = "#" + eff("farben", "haupt"), k0 = "#" + eff("farben", "kante"), r0 = "#" + eff("farben", "rand"), h = "<div class='pk'><div class='g'>";
+  SYL.forEach(function (t, n) {
+    h += "<span class='sy" + (symWahl === n ? " a" : "") + "' data-sy='" + n + "' title='" + attr(IN[W_FEST + n]) + "'>" + symSvg(n, symFarben(n, f0, k0, r0), 40) +
+         (symEigen(n) ? "<i></i>" : "") + "</span>";
+  });
+  return h + "</div></div>";
+}
+function symKarte() {
+  if (symWahl === null) return "";
+  var n = symWahl, k = ["sy" + n + "p", "sy" + n + "s", "sy" + n + "r"], ge = k.some(function (q) { return eigen("farben", q); });
+  var zwei = (SYL[n] || []).some(function (t) { return t[0]; }) || eff("optionen", "sym3d");   // secondary only with dark parts or 3D
+  var h = "<div class='blk" + (seite === "nacht" && !ge ? " w" : "") + "'><div class='t'>" + IN[W_FEST + n] +
+    (seite === "nacht" ? (ge ? "<span class='x' data-reset='sy:" + n + "'>↺</span>" : " <small>as day</small>") : "") + "</div><div class='zl'>" +
+    "<span class='sy'>" + symSvg(n, symFarben(n, "#" + eff("farben", "haupt"), "#" + eff("farben", "kante"), "#" + eff("farben", "rand")), 60) + "</span>" +
+    "<span class='mini' data-k='" + k[0] + "'>" + feld(k[0]) + "Primary</span>" +
+    (zwei ? "<span class='mini' data-k='" + k[1] + "'>" + feld(k[1]) + "Secondary</span>" : "") +
+    "<span class='mini' data-k='" + k[2] + "'>" + feld(k[2]) + "Outline</span></div></div>";
+  return h + palette(k[0]) + (zwei ? palette(k[1]) : "") + palette(k[2]);
 }
 function kurveBenutzt(w) { return BL.some(function (b) { return eff("optionen", b[0]) === w; }); }   // 10 temperature, 18 pressure curve
 function achseZeile() {                            // time axis (0.28.0) below the tabs since 0.30.0: it applies to everything on the time axis
@@ -369,13 +458,24 @@ function achseZeile() {                            // time axis (0.28.0) below t
 // Share (0.27.0): an own preset as a text code to copy; Import takes such a code back in as a new preset
 function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
 function psCode(p) { return JSON.stringify({ name: p.name, tag: kompakt(p.tag), nacht: p.nacht }); }   // compact since 0.30.0
+// Configurator (0.35.0): the current day and night as one preset code
+function pcCode() { return psCode({ name: pcName.trim().substring(0, 40) || T("My look"), tag: z.tag, nacht: z.nacht }); }
+function pcFeld() {
+  return "<div class='sek' id='pcfeld'><div class='inn' style='padding-top:12px'><div class='u'>Code for the Pebble</div>" +
+    "<div class='neu'><input id='pcname' maxlength='40' value='" + attr(pcName) + "' placeholder='Name, e.g. My look'></div>" +
+    "<div class='code' style='margin-top:8px'><textarea id='pscode' readonly>" + esc(pcCode()) + "</textarea>" +
+    "<div class='chips'><b data-pc='kopieren'>Copy</b></div>" + (pcMeldung ? "<p class='info'>" + pcMeldung + "</p>" : "") + "</div>" +
+    "<p class='info'>On the phone: Pebble app → Neonweather → settings → Presets → Import, paste the code, then load it — “for day & night” when it has a night look. " +
+    "Get the code across any way you like: shared clipboard, a note, a message to yourself. Time format and language stay on the phone.</p></div></div>";
+}
 // Imported values: missing, wrong type or unknown content → default (since 0.30.0: codes are compact, missing = default;
 // until 0.29.0 the current day). nurDa: keep only what is there, for the night
 function themaSaeubern(t, nurDa) {
   var e = { farben: {}, optionen: {} };
   for (var k in STD.farben) {
     var c = t && t.farben ? t.farben[k] : undefined;
-    if (typeof c === "string" && (/^(00|55|AA|FF){3}$/i.test(c) || (ERB[k] && c === ""))) e.farben[k] = c.toUpperCase(); else if (!nurDa) e.farben[k] = STD.farben[k];
+    if (typeof c === "string" && (/^(00|55|AA|FF){3}$/i.test(c) || (erbOk(k) && c === "") || (ohneOk(k) && c === "none"))) e.farben[k] = c === "none" ? c : c.toUpperCase();
+    else if (!nurDa) e.farben[k] = STD.farben[k];
   }
   for (k in STD.optionen) {
     var v = t && t.optionen ? t.optionen[k] : undefined, ok;
@@ -457,12 +557,15 @@ var ABSCHNITTE = [
     return h + "<p class='info'>Numbers above 99 run into the right block when it’s empty, otherwise they stop at 99. Steps: thousands, exact with an empty right block.</p>";
   }],
   // 0.30.0: main colour, 3D edge, outline and the symbol families with colour and 3D edge (until 0.29.0 at the end of "Rows & content")
-  ["ziffern", "Digits & symbols", "main color, 3D edge, symbol colors", function () {
+  ["ziffern", "Digits & symbols", "main color, 3D edge, symbol colors", function () {   // 0.34.0: 3D switch, outlines, single symbols
     var h = "<p class='info'>Main color, 3D edge and digit outline apply to every digit, letter and symbol. Blocks, the time and every symbol family can have their own color and 3D edge, blocks and the time their own outline too — empty = inherit.</p>" +
       farbe("haupt") + farbe("kante") + farbe("rand") +
-      "<div class='u'>Symbol colors</div><p class='info'>Each symbol family can have its own color and 3D edge, wherever it shows up — the moon of “Weather now” at night too. Empty = the block’s.</p>";
+      "<div class='u'>Symbols</div>" + schalter("sym3d", "3D edge on symbols", "off = flat icons; digits and letters always keep theirs") +
+      "<p class='info'>Primary = the shape, secondary = the details (eyes, glasses, the dark side of the moon) and the 3D edge when it’s on, outline = the rim around every part. Empty = inherit: symbol → family → block.</p>" +
+      "<div class='u'>Symbol families</div><p class='info'>Wherever a symbol shows up — the moon of “Weather now” at night too.</p>";
     FAM.forEach(function (f, i) { h += famKarte(i); });
-    return h;
+    return h + "<div class='u'>Single symbols</div><p class='info'>Tap a symbol to give it colors of its own; a dot marks the ones that have.</p>" +
+      symGitter() + symKarte();
   }],
   // only when a block shows a curve (0.30.0), and only the curves in use
   ["kurven", "Curves", "temperature and pressure: all colors", function () {
@@ -522,7 +625,8 @@ var ABSCHNITTE = [
 ];
 
 function zeigen() {
-  var h = "<div class='chips sp'><b data-sp='en' class='" + (sp === "en" ? "a" : "") + "'>English</b><b data-sp='de' class='" + (sp === "de" ? "a" : "") + "'>Deutsch</b></div>" +
+  var h = (PC ? "<p class='info'>Configurator: put your look together here, then “Code for the Pebble” at the bottom gives you a code to import on the phone.</p>" : "") +
+          "<div class='chips sp'><b data-sp='en' class='" + (sp === "en" ? "a" : "") + "'>English</b><b data-sp='de' class='" + (sp === "de" ? "a" : "") + "'>Deutsch</b></div>" +
           "<div class='reiter'><span data-tab='tag' class='" + (seite === "tag" ? "a" : "") + "'>Day</span>" +
           "<span data-tab='nacht' class='" + (seite === "nacht" ? "a" : "") + "'>Night</span></div>";
   if (seite === "nacht") {
@@ -540,10 +644,11 @@ function zeigen() {
          (n ? "<small class='ae'>" + n + (sp === "de" ? " geändert" : " changed") + "</small>" : "") + "<b>" + (sek[a[0]] ? "▾" : "▸") + "</b></div>" +
          (sek[a[0]] ? "<div class='inn'>" + inn + "</div>" : "") + "</div>";
   });
+  if (PC && pcAn) h += pcFeld();                   // configurator: the code below the sections, right above the buttons
   document.getElementById("inhalt").innerHTML = uebersetzen(h);
   vsZeigen();
   document.getElementById("hw").textContent = T("Preview with sample data, simplified font");
-  document.getElementById("ok").textContent = T("Save");
+  document.getElementById("ok").textContent = T(PC ? "Code for the Pebble" : "Save");
   document.getElementById("tst").textContent = T(seite === "nacht" ? "Save & show day for 30 s" : "Save & show night for 30 s");
   if (document.documentElement) document.documentElement.lang = sp;
   knopf();
@@ -600,7 +705,7 @@ function laden(p, ziel) {
   n = abweichung(z.tag, p.tag); z.nacht.farben = n.farben; z.nacht.optionen = n.optionen; z.nacht.an = true;
 }
 var ZIEL = { tag: ["for day", "für den Tag"], nacht: ["for night", "für die Nacht"], beide: ["for day & night", "für Tag und Nacht"] };
-var A = ["data-eb", "data-sp", "data-reset", "data-c", "data-ps", "data-tab", "data-sek", "data-nm", "data-gl", "data-sw", "data-rd", "data-ch", "data-k"];
+var A = ["data-pc", "data-iw", "data-pk", "data-sy", "data-eb", "data-sp", "data-reset", "data-c", "data-ps", "data-tab", "data-sek", "data-nm", "data-gl", "data-sw", "data-rd", "data-ch", "data-k"];
 document.getElementById("inhalt").onclick = function (ev) {
   var t = ev.target, a = null, w = null;
   if (t && (t.tagName === "SELECT" || t.tagName === "INPUT")) return;
@@ -611,7 +716,8 @@ document.getElementById("inhalt").onclick = function (ev) {
   if (a === "data-sp") sp = w === "de" ? "de" : "en";
   else if (a === "data-reset") {
     if (kv[0] === "blk") { var bb = BL[parseInt(kv[1], 10)]; delete z.nacht.optionen[bb[0]]; delete z.nacht.optionen[bb[1]]; delete z.nacht.farben[bb[2]]; delete z.nacht.farben[bb[3]]; delete z.nacht.optionen[bb[5]]; delete z.nacht.farben[bb[6]]; delete z.nacht.optionen[bb[7]]; delete z.nacht.farben[bb[8]]; }
-    else if (kv[0] === "fam") { var fm = FAM[parseInt(kv[1], 10)]; delete z.nacht.farben[fm[0]]; delete z.nacht.farben[fm[1]]; }
+    else if (kv[0] === "fam") { var fm = FAM[parseInt(kv[1], 10)]; delete z.nacht.farben[fm[0]]; delete z.nacht.farben[fm[1]]; delete z.nacht.farben[fm[2]]; }
+    else if (kv[0] === "sy") ["p", "s", "r"].forEach(function (j) { delete z.nacht.farben["sy" + kv[1] + j]; });   // 0.34.0
     else delete z.nacht[kv[0]][kv[1]];
   }
   else if (a === "data-c") { setz("farben", offen, w); offen = null; }
@@ -657,6 +763,15 @@ document.getElementById("inhalt").onclick = function (ev) {
   else if (a === "data-rd") setz("optionen", kv[0], parseInt(kv[1], 10));
   else if (a === "data-ch") setz("optionen", kv[0], typeof z.tag.optionen[kv[0]] === "boolean" ? kv[1] === "1" : parseInt(kv[1], 10));
   else if (a === "data-k") offen = offen === w ? null : w;
+  else if (a === "data-pk") offen = offen === "pk:" + w ? null : "pk:" + w;             // content menu (0.34.0)
+  else if (a === "data-pc") {                       // configurator: copy the code (0.35.0)
+    var pt = document.getElementById("pscode"), ok = false;
+    try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(pcCode()); ok = true; } } catch (e) {}
+    try { pt.select(); ok = document.execCommand("copy") || ok; } catch (e) {}
+    pcMeldung = T(ok ? "Copied — now paste it on the phone under Presets → Import." : "Select the code and copy it by hand.");
+  }
+  else if (a === "data-iw") { setz("optionen", kv[0], parseInt(kv[1], 10)); offen = null; }
+  else if (a === "data-sy") { var sn = parseInt(w, 10); symWahl = symWahl === sn ? null : sn; offen = null; }
   else if (a === "data-eb") {                       // layers (0.33.0): swap with the neighbour, or back to the default
     var eo = (eff("optionen", "ebenen") || EB_STD).split(""), ep = parseInt(kv[0], 10), eq = ep + parseInt(kv[1], 10);
     if (w === "std") setz("optionen", "ebenen", EB_STD);
@@ -677,6 +792,7 @@ document.getElementById("inhalt").onchange = function (ev) {      // block conte
 document.getElementById("inhalt").oninput = function (ev) {       // slider while dragging; text while typing: preview only, the field keeps its focus
   var t = ev.target, k = t && t.getAttribute ? t.getAttribute("data-rg") : null, tx = t && t.getAttribute ? t.getAttribute("data-tx") : null;
   if (tx) { setz("optionen", tx, String(t.value || "").substring(0, 4)); vorschau(); return; }
+  if (t && t.id === "pcname") { pcName = String(t.value || ""); var pt = document.getElementById("pscode"); if (pt) pt.value = pcCode(); merken(); return; }
   if (!k) return;
   setz("optionen", k, parseInt(t.value, 10));
   document.getElementById("rw_" + k).textContent = t.value + " px";
@@ -696,7 +812,15 @@ document.getElementById("std").onclick = function () {
 function speichern(test) {
   document.location = "pebblejs://close#" + encodeURIComponent(JSON.stringify({ tag: z.tag, nacht: z.nacht, presets: kompaktListe(), sprache: sp, global: glob, test: test }));
 }
-document.getElementById("ok").onclick = function () { speichern(false); };
+document.getElementById("ok").onclick = function () {
+  if (!PC) { speichern(false); return; }
+  pcAn = true; pcMeldung = ""; zeigen();             // configurator: show the code instead of closing a web view
+  var f = document.getElementById("pcfeld"); if (f && f.scrollIntoView) f.scrollIntoView({ behavior: "smooth", block: "center" });
+};
+if (PC) {
+  var tk = document.getElementById("tst"); if (tk && tk.style) tk.style.display = "none";
+  if (document.body) document.body.className = "pc";
+}
 document.getElementById("tst").onclick = function () { speichern(true); };
 
 // Free text (0.28.0) → character codes, the same rule as textCodes() in logik.js: only characters the watch has (SC.zeichen)
@@ -738,6 +862,42 @@ var BW = [
 ];
 // symbol masks once from Base64 (0.30.0, until 0.29.0 hex)
 var SYB = ((SY && SY.teile) || []).map(function (s) { return s.map(function (t) { var b = atob(t[1]), a = []; for (var i = 0; i < b.length; i++) a.push(b.charCodeAt(i)); return [t[0], a]; }); });
+// runs per part [row, from, to] (0.34.0), for preview and icons alike
+function laeufeVon(by) {
+  var l = [];
+  for (var r = 0; r < 34; r++) for (var q = 0, s = -1; q <= 34; q++) {
+    var an = q < 34 && (by[r * 5 + (q >> 3)] >> (7 - (q & 7)) & 1);
+    if (an && s < 0) s = q;
+    if (!an && s >= 0) { l.push([r, s, q]); s = -1; }
+  }
+  return l;
+}
+var SYL = SYB.map(function (s) { return s.map(function (t) { return [t[0], laeufeVon(t[1])]; }); });
+// Colours of symbol n (0.34.0) like sym_farbe(), sym_kante(), sym_rand() in main.c: own, family, then the fallback; r null = no outline
+function symFarben(n, face, kante, rand) {
+  var fm = FAM[familie(n)];
+  function wert(k, fk) { var c = eff("farben", k); return c !== "" ? c : eff("farben", fk); }
+  var p = wert("sy" + n + "p", fm[0]), s = wert("sy" + n + "s", fm[1]), r = wert("sy" + n + "r", fm[2]);
+  return { p: p ? "#" + p : face, s: s ? "#" + s : kante, r: r === "none" ? null : r ? "#" + r : rand };
+}
+// Icon as SVG like symbol() in main.c: per part outline (grown by 1 px), 3D edge when on, face; dark parts flat in the secondary colour
+function symSvg(n, f, gr) {
+  var d3 = eff("optionen", "sym3d") ? 4 : 0, key = [n, f.p, f.s, f.r, d3, gr].join(), h = "";
+  if (SVGC[key]) return SVGC[key];
+  function pfad(l, dx, dy, w, farbe) {
+    var d = "";
+    l.forEach(function (u) { var b = u[2] - u[1] + 2 * w; d += "M" + (u[1] + dx - w) + " " + (u[0] + dy - w) + "h" + b + "v" + (1 + 2 * w) + "h-" + b + "z"; });
+    return "<path fill='" + farbe + "' d='" + d + "'/>";
+  }
+  (SYL[n] || []).forEach(function (t) {
+    var k;
+    if (t[0]) { if (f.r) h += pfad(t[1], 0, 0, 1, f.r); h += pfad(t[1], 0, 0, 0, f.s); return; }
+    if (f.r) for (k = 0; k <= d3; k++) h += pfad(t[1], k, k, 1, f.r);
+    for (k = d3; k >= 1; k--) h += pfad(t[1], k, k, 0, f.s);
+    h += pfad(t[1], 0, 0, 0, f.p);
+  });
+  return (SVGC[key] = "<svg width='" + gr + "' height='" + gr + "' viewBox='-2 -2 40 40' shape-rendering='crispEdges'>" + h + "</svg>");
+}
 function vorschau() {
   var x = document.getElementById("v").getContext("2d"), i, h, bw = BW[vw] || BW[0];
   var R = bw.R, PD = bw.P, R24 = bw.Rn.concat(R, bw.Rs), PD24 = bw.Pn.concat(PD, bw.Ps);   // 00–23 h (0.28.0)
@@ -870,23 +1030,19 @@ function vorschau() {
     x.fillStyle = face; re.forEach(function (r) { x.fillRect(r[0], r[1], r[2], r[3]); });
   }
   // symbols and curve (since 0.22.0): masks from symbole.js, edge like the digits, no outline; curve with sample temperatures
-  function maske(by, x0, y0, farbe) {                 // 34 rows of 5 bytes, bit 7 = left column
+  function maske(l, x0, y0, farbe, w) {               // runs of a part; w = 1: grown by 1 px (outline, like laeufe() with d = 1)
     x.fillStyle = farbe;
-    for (var r = 0; r < 34; r++) {
-      var s = -1;
-      for (var q = 0; q <= 34; q++) {
-        var an = q < 34 && (by[r * 5 + (q >> 3)] >> (7 - (q & 7)) & 1);
-        if (an && s < 0) s = q;
-        if (!an && s >= 0) { x.fillRect(x0 + s, y0 + r, q - s, 1); s = -1; }
-      }
-    }
+    l.forEach(function (u) { x.fillRect(x0 + u[1] - w, y0 + u[0] - w, u[2] - u[1] + 2 * w, 1 + 2 * w); });
   }
-  function sym(n, x0, y0, face, kante) {             // n = symbol number as on the watch; face and edge: the family's when set (0.28.0, 0.30.0)
-    face = fe(FAM[familie(n)][0], face); kante = fe(FAM[familie(n)][1], kante);
-    (SYB[n] || []).forEach(function (t) {             // t = [dark, mask]; dark: flat in the edge colour (moon disc, battery, phone)
-      if (t[0]) { maske(t[1], x0, y0, kante); return; }
-      for (var k = 4; k >= 1; k--) maske(t[1], x0 + k, y0 + k, kante);
-      maske(t[1], x0, y0, face);
+  // like symbol() in main.c since 0.34.0: colours per symbol, family, block; outline per part, 3D edge only when switched on
+  function sym(n, x0, y0, face, kante) {
+    var c = symFarben(n, face, kante, rnd), d3 = o("sym3d") ? 4 : 0;
+    (SYL[n] || []).forEach(function (t) {             // t = [dark, runs]; dark: flat in the secondary colour (moon disc, eyes, glasses)
+      var k;
+      if (t[0]) { if (c.r) maske(t[1], x0, y0, c.r, 1); maske(t[1], x0, y0, c.s, 0); return; }
+      if (c.r) for (k = 0; k <= d3; k++) maske(t[1], x0 + k, y0 + k, c.r, 1);
+      for (k = d3; k >= 1; k--) maske(t[1], x0 + k, y0 + k, c.s, 0);
+      maske(t[1], x0, y0, c.p, 0);
     });
   }
   // smart symbols as samples: baro, umbrella, warning, weather now (moon or cloud at night), crescent, stale data, battery, phone
@@ -918,7 +1074,7 @@ function vorschau() {
     var x0 = [0, 107][sei];
     if (w === 10 || w === 18) kurveV(x0, y0, w === 10 ? "t" : "b");
     else if (w === 12) {                              // digit in the arrow colour and with its edge
-      var s = symVon(w); sym(s, x0, y0, face, kante); zf("2", 2 * sei + 1, y0 - 3, fe(FAM[familie(s)][0], face), fe(FAM[familie(s)][1], kante));
+      var s = symVon(w), sc = symFarben(s, face, kante, rnd); sym(s, x0, y0, face, kante); zf("2", 2 * sei + 1, y0 - 3, sc.p, sc.s);
     }
     else if (!w2) { if (w) sym(symVon(w), x0 + 27, y0, face, kante); }   // a single one: centred in the block
     else { if (w) sym(symVon(w), x0, y0, face, kante); sym(symVon(w2), x0 + 54, y0, face, kante); }
@@ -943,7 +1099,7 @@ function vorschau() {
           continue;
         }
         if (w === 10 || w === 12 || w === 18 || zelle(w)) { bild(w, o(bk[5]), sei, TY[rr] + 3, face, kante); continue; }
-        var t2 = w === 22 && frei ? "8432" : WERT[w] || "--";   // steps exact when the right block is empty
+        var t2 = w === 22 && frei ? "8432" : w === 32 ? (frei ? (sp === "de" ? "MESZ" : "CEST") : "+2") : WERT[w] || "--";   // steps exact with an empty right block; time zone (0.36.0)
         for (ci = 0; ci < t2.length; ci++) zeichenV(t2.charCodeAt(ci), 2 * sei + ci, TY[rr] + 3, face, kante);
       }
     }

@@ -168,11 +168,19 @@ var FARBEN = [['grund', 'Background', '000000'], ['saeule', 'Columns', '550055']
               // 0.32.0: digit outline per block and of the time (empty = the common digit outline)
               ['rand_1l', 'Outline row 1 left', ''], ['rand_1r', 'Outline row 1 right', ''], ['rand_2l', 'Outline row 2 left', ''],
               ['rand_2r', 'Outline row 2 right', ''], ['rand_4l', 'Outline row 4 left', ''], ['rand_4r', 'Outline row 4 right', ''],
-              ['rand_5l', 'Outline row 5 left', ''], ['rand_5r', 'Outline row 5 right', ''], ['rand_zeit', 'Outline time', '']];
+              ['rand_5l', 'Outline row 5 left', ''], ['rand_5r', 'Outline row 5 right', ''], ['rand_zeit', 'Outline time', ''],
+              // 0.34.0: outline per symbol family (empty = the block's, 'none' = no outline)
+              ['sr_pfeil', 'Outline baro arrows', ''], ['sr_schirm', 'Outline umbrella', ''], ['sr_warnung', 'Outline warnings', ''],
+              ['sr_wetter', 'Outline weather', ''], ['sr_mond', 'Outline moon', ''], ['sr_alt', 'Outline status', ''],
+              ['sr_freude', 'Outline heart, smiley …', '']];
 function farbeGueltig(hex) { return typeof hex === 'string' && /^(00|55|AA|FF){3}$/i.test(hex); }   // only the 64 Pebble colours
 var ERBEN = {};                                    // colours that may be empty (inherit), since 0.28.0
 FARBEN.forEach(function (e) { if (e[2] === '') ERBEN[e[0]] = true; });
-function farbeErlaubt(k, hex) { return farbeGueltig(hex) || (ERBEN[k] === true && hex === ''); }
+// 'none' (0.34.0): no outline — only for the outlines of symbols and symbol families
+function ohneErlaubt(k) { return /^sr_/.test(k) || /^sy\d+r$/.test(k); }
+function farbeErlaubt(k, hex) { return farbeGueltig(hex) || ((ERBEN[k] === true || /^sy\d+[psr]$/.test(k)) && hex === '') || (hex === 'none' && ohneErlaubt(k)); }
+function farbWert(v) { return v === 'none' ? v : v.toUpperCase(); }
+function farbByte(v) { return v === '' ? 64 : v === 'none' ? 128 : farbCode(v); }   // '' = inherit (0.28.0), 'none' = 128 (0.34.0)
 // Digit colours that inherit the main colour since 0.30.0 (until then white by default, set one by one)
 var ZIFFERN = ['ziffer', 'z_auf', 'z_auf2', 'z_tag', 'z_monat', 'z_min', 'z_max', 'z_unter', 'z_unter2'];
 // Check stored colours or colours from the page; missing or invalid = default.
@@ -190,7 +198,8 @@ function farbenPruefen(f) {
     ZIFFERN.forEach(function (z) { g[z] = alt[z] === g.haupt ? '' : alt[z]; });
     f = g;
   }
-  FARBEN.forEach(function (e) { aus[e[0]] = f && farbeErlaubt(e[0], f[e[0]]) ? f[e[0]].toUpperCase() : e[2]; });
+  FARBEN.forEach(function (e) { aus[e[0]] = f && farbeErlaubt(e[0], f[e[0]]) ? farbWert(f[e[0]]) : e[2]; });
+  SYMF.forEach(function (k) { aus[k] = f && farbeErlaubt(k, f[k]) ? farbWert(f[k]) : ''; });   // 0.34.0: per symbol, empty = family
   return aus;
 }
 // Display options. Index into DRUCKLAGEN = DRUCKLAGE on the watch
@@ -213,13 +222,20 @@ var INHALTE = ['empty', 'Day', 'Month', 'Low', 'High', 'Sunrise hour', 'Sunrise 
                'Free text',         // 0.28.0 (19)
                // 0.30.0 (20–31): weekday, watch, weather numbers; smart symbols battery low and phone disconnected
                'Weekday', 'Battery %', 'Steps', 'Heart rate', 'Rain chance now', 'Rain chance 12 h', 'UV index now', 'UV index max',
-               'Wind now', 'Gusts now', 'Battery low', 'Phone disconnected'];   // append new contents here, up to 63
+               'Wind now', 'Gusts now', 'Battery low', 'Phone disconnected',
+               'Time zone'];   // 0.36.0 (32): offset of the watch's time zone, with an empty right block the abbreviation   // append new contents here, up to 63
 var W_FEST = 64;                          // fixed symbols from 64 since 0.23.0 (0.22.0: from 18), free in between
+var SYMF = [];                            // 0.34.0: colour keys per symbol (filled in below the list of symbols)
 while (INHALTE.length < W_FEST) INHALTE.push(null);
 // from W_FEST: every symbol, fixed; order = enum SYM_… (names as in tools/symbole.py, checked by logik_test.js)
 INHALTE = INHALTE.concat(['Arrow up', 'Arrow up-right', 'Arrow right', 'Arrow down-right', 'Arrow down', 'Umbrella', 'Snowflake', 'Lightning', 'Windsock', 'Cloud crossed out', 'Sun', 'Cloud', 'Sun and cloud', 'Rain cloud', 'Snow cloud', 'Fog', 'New moon', 'Waxing crescent', 'First quarter', 'Waxing gibbous', 'Full moon', 'Waning gibbous', 'Last quarter', 'Waning crescent',
                           'Battery empty', 'Phone disconnected',                                   // 0.30.0
-                          'Heart', 'Smiley', 'Star', 'Check mark', 'Flower', 'Music note', 'Four-leaf clover', 'Coffee']);   // 0.30.0: positive symbols
+                          'Heart', 'Smiley', 'Star', 'Check mark', 'Flower', 'Music note', 'Four-leaf clover', 'Coffee',   // 0.30.0: positive symbols
+                          'Butterfly', 'Sleeping smiley', 'Alpaca with glasses', 'Alpaca with sunglasses', 'Fluffy cloud']);   // 0.34.0
+// Colours per symbol (0.34.0): sy<n>p primary, sy<n>s secondary (dark parts, and the 3D edge when on), sy<n>r outline ('none' = off);
+// n = symbol number on the watch, empty = the family's. Message SYMFARBEN: three bytes per symbol in this order
+for (var sn = 0; sn < INHALTE.length - W_FEST; sn++) SYMF.push('sy' + sn + 'p', 'sy' + sn + 's', 'sy' + sn + 'r');
+function symFarbenBytes(f) { var g = farbenPruefen(f); return SYMF.map(function (k) { return farbByte(g[k]); }); }
 // Contents that use one cell only (0.22.0): empty, smart symbols, fixed symbols — like ist_zelle() in main.c
 function inhaltGueltig(w) { return typeof w === 'number' && w % 1 === 0 && w >= 0 && INHALTE[w] !== null && INHALTE[w] !== undefined; }
 function istZelle(w) { return typeof w === 'number' && w % 1 === 0 && (w === 0 || w === 11 || (w >= 13 && w <= 17) || w === 30 || w === 31 || (w >= W_FEST && w < INHALTE.length)); }
@@ -239,7 +255,7 @@ function ebenenGueltig(e) {
   return typeof e === 'string' && e.length === EBENEN.length && e.split('').sort().join('') === EBENEN_STD;
 }
 function ebenenBytes(o) { return (ebenenGueltig(o.ebenen) ? o.ebenen : EBENEN_STD).split('').map(Number); }
-var OPTIONEN = ['achse', 'saeulen', 'ebenen', 'sonne_tag', 'sonne_daemmerung', 'sonne_nacht', 'sonne_streifen', 'streifen_voll', 'staerke_s', 'drucklage', 'regenlage', 'zeitmarke', 'luftdruck', 'regenvoll', 'sonne', 'tageslinie', 'verlauf', 'schwelle',
+var OPTIONEN = ['achse', 'saeulen', 'ebenen', 'sym3d', 'sonne_tag', 'sonne_daemmerung', 'sonne_nacht', 'sonne_streifen', 'streifen_voll', 'staerke_s', 'drucklage', 'regenlage', 'zeitmarke', 'luftdruck', 'regenvoll', 'sonne', 'tageslinie', 'verlauf', 'schwelle',
                 'zeile1', 'zeile5', 'druckvoll', 'staerke_v', 'staerke_h', 'staerke_d', 'voll_v', 'voll_h', 'regen_vorn', 'regen_rel', 'rahmen_z']
   .concat(BALKEN.map(function (b) { return b[0]; }), BLOECKE.map(function (b) { return b[0]; }), BLOECKE.map(function (b) { return b[5]; }),
           BLOECKE.map(function (b) { return b[7]; }));
@@ -268,6 +284,7 @@ function optionenPruefen(o) {
   aus.saeulen = an('saeulen', true);                      // 0.24.0: background columns can be switched off
   // 0.33.0: layer order; until 0.32.0 the switch regen_hinter (0.25.0: day, since 0.25.1 also twilight in front of the rain)
   aus.ebenen = o && ebenenGueltig(o.ebenen) ? o.ebenen : an('regen_hinter', false) ? EBENEN_HINTER : EBENEN_STD;
+  aus.sym3d = an('sym3d', false);                         // 0.34.0: symbols with 3D edge; off by default, text keeps it
   aus.sonne_tag = an('sonne_tag', true); aus.sonne_daemmerung = an('sonne_daemmerung', true); aus.sonne_nacht = an('sonne_nacht', true);   // 0.26.0
   aus.sonne_streifen = an('sonne_streifen', false); aus.streifen_voll = an('streifen_voll', true);
   aus.staerke_s = o && typeof o.staerke_s === 'number' && o.staerke_s >= 1 && o.staerke_s <= 20 ? Math.floor(o.staerke_s) : 2;
@@ -280,11 +297,11 @@ function optionenPruefen(o) {
 // width vertical, horizontal (px), frame, sun stripes (0.26.0), baro (0.31.0)
 function linienBytes(o) { return [o.staerke_v, o.staerke_h, o.rahmen_z ? 1 : 0, o.staerke_s || 2, o.staerke_d || 2]; }
 function bloeckeBytes(o) { return BLOECKE.map(function (b) { return o[b[0]]; }); }
-// Message SCHALTER: bit 0 columns (0.24.0), 1 rain behind day and twilight (0.25.0, unused since 0.33.0: EBENEN), 2–4 areas day, twilight, night,
+// Message SCHALTER: bit 0 columns (0.24.0), 1 rain behind day and twilight (0.25.0–0.32.0; since 0.34.0 symbols with 3D edge), 2–4 areas day, twilight, night,
 // 5 sun stripes, 6 stripes solid (0.26.0), 7–8 time axis: 0 = 04–20 h, 1 = 00–24 h (0.28.0), 2 = 16–08 h (0.29.0). Missing keys = default
 function schalterZahl(o) {
   function an(k, std) { return typeof o[k] === 'boolean' ? o[k] : std; }
-  return (an('saeulen', true) ? 1 : 0) | (an('sonne_tag', true) ? 4 : 0) | (an('sonne_daemmerung', true) ? 8 : 0) |
+  return (an('saeulen', true) ? 1 : 0) | (an('sym3d', false) ? 2 : 0) | (an('sonne_tag', true) ? 4 : 0) | (an('sonne_daemmerung', true) ? 8 : 0) |
          (an('sonne_nacht', true) ? 16 : 0) | (an('sonne_streifen', false) ? 32 : 0) | (an('streifen_voll', true) ? 64 : 0) |
          ((o.achse === 1 || o.achse === 2 ? o.achse : typeof o.achse === 'number' ? 0 : an('achse24', false) ? 1 : 0) << 7);
 }
@@ -337,7 +354,8 @@ function nachtPruefen(n) {
     o = JSON.parse(JSON.stringify(o)); o.ebenen = o.regen_hinter ? EBENEN_HINTER : EBENEN_STD;
   }
   test = optionenPruefen(o);
-  FARBEN.forEach(function (e) { if (farbeErlaubt(e[0], f[e[0]])) aus.farben[e[0]] = f[e[0]].toUpperCase(); });
+  FARBEN.forEach(function (e) { if (farbeErlaubt(e[0], f[e[0]])) aus.farben[e[0]] = farbWert(f[e[0]]); });
+  SYMF.forEach(function (k) { if (farbeErlaubt(k, f[k])) aus.farben[k] = farbWert(f[k]); });   // 0.34.0
   for (k in o) if (OPTIONEN.indexOf(k) >= 0 && o[k] === test[k]) aus.optionen[k] = o[k];
   return aus;
 }
@@ -349,6 +367,25 @@ function nachtThema(tag, nacht) {
 }
 // Settings that are the same day and night (0.30.0, message GLOBAL): bits 0–1 time format 0 like the watch, 1 = 24 h, 2 = 12 h;
 // bit 2 weekday in German (follows the language of the settings page)
+// Time zone abbreviations (0.36.0): the watch firmware knows only the offset (tm_zone "N/A", no DST flag), so the phone sends the
+// names of its zone with the offset each belongs to — standard and summer time, 6 bytes each: offset in minutes (int16, big-endian),
+// 4 characters. No Intl: in the emulator's JS engine new Intl.DateTimeFormat() kills the whole phone script (fatal out of memory,
+// not catchable), and the phone's engine is unknown. Instead the offsets in January and July and a table of zones with DST;
+// zones without DST (India, Japan …) send no name, the watch shows the offset. [standard, summer, English ×2, German ×2]
+var ZONEN = [[0, 60, 'GMT', 'BST', 'WEZ', 'WESZ'], [60, 120, 'CET', 'CEST', 'MEZ', 'MESZ'], [120, 180, 'EET', 'EEST', 'OEZ', 'OESZ'],
+             [-210, -150, 'NST', 'NDT'], [-240, -180, 'AST', 'ADT'], [-300, -240, 'EST', 'EDT'], [-360, -300, 'CST', 'CDT'],
+             [-420, -360, 'MST', 'MDT'], [-480, -420, 'PST', 'PDT'], [-540, -480, 'AKST', 'AKDT'],
+             [570, 630, 'ACST', 'ACDT'], [600, 660, 'AEST', 'AEDT'], [720, 780, 'NZST', 'NZDT'], [0, 0, 'UTC', 'UTC']];
+function zonenBytes(jetzt, sprache) {
+  var j = new Date(jetzt).getFullYear(), a = -new Date(j, 0, 1, 12).getTimezoneOffset(), b = -new Date(j, 6, 1, 12).getTimezoneOffset();
+  var std = Math.min(a, b), som = Math.max(a, b), e = null, de = sprache === 'de' ? 2 : 0, aus = [];
+  ZONEN.forEach(function (z) { if (z[0] === std && z[1] === som) e = z; });
+  [[std, e ? e[2 + de] || e[2] : ''], [som, e ? e[3 + de] || e[3] : '']].forEach(function (p) {
+    aus.push(p[0] >> 8 & 255, p[0] & 255);
+    for (var i = 0; i < 4; i++) aus.push(i < p[1].length ? p[1].charCodeAt(i) : 0);
+  });
+  return aus;
+}
 function globalPruefen(g) { return { zeitformat: g && (g.zeitformat === 1 || g.zeitformat === 2) ? g.zeitformat : 0 }; }
 function globalZahl(g, sprache) { return globalPruefen(g).zeitformat | (sprache === 'de' ? 4 : 0); }
 // Everything the watch gets as settings; glob = { zeitformat, sprache } (0.30.0, optional)
@@ -361,6 +398,7 @@ function anUhr(tag, nacht, glob) {
            SCHALTER: schalterZahl(tag.optionen), SCHALTER_N: schalterZahl(n.optionen),
            TEXTE: texteBytes(tag.optionen), TEXTE_N: texteBytes(n.optionen),
            EBENEN: ebenenBytes(tag.optionen), EBENEN_N: ebenenBytes(n.optionen),   // 0.33.0
+           SYMFARBEN: symFarbenBytes(tag.farben), SYMFARBEN_N: symFarbenBytes(n.farben),   // 0.34.0
            NACHTMODUS: nacht.an ? 1 : 0, GLOBAL: globalZahl(glob, glob && glob.sprache) };
 }
 // Compact themes for the settings page (0.30.0): only what differs from the default — the page is a data URL, nine stock presets in
@@ -470,7 +508,7 @@ function vorlagen() {                // with "… Night" after every stock prese
 }
 
 function farbCode(hex) { var c = 0; for (var i = 0; i < 3; i++) c = c * 4 + parseInt(hex.substr(i * 2, 2), 16) / 85; return c; }
-function farbenBytes(f) { var g = farbenPruefen(f); return FARBEN.map(function (e) { return g[e[0]] === '' ? 64 : farbCode(g[e[0]]); }); }   // '' = inherit (0.28.0)
+function farbenBytes(f) { var g = farbenPruefen(f); return FARBEN.map(function (e) { return farbByte(g[e[0]]); }); }
 
 module.exports = { wetterUrl: wetterUrl, wetterPaket: wetterPaket, wetter2Paket: wetter2Paket, globalPruefen: globalPruefen, globalZahl: globalZahl,
                    STD: STD, kompakt: kompakt, kompaktListe: kompaktListe, seitenUrl: seitenUrl, ZIFFERN: ZIFFERN, ortsDatum: ortsDatum, FARBEN: FARBEN,
@@ -479,6 +517,7 @@ module.exports = { wetterUrl: wetterUrl, wetterPaket: wetterPaket, wetter2Paket:
                    optionenZahl: optionenZahl, nachtPruefen: nachtPruefen, nachtThema: nachtThema, anUhr: anUhr,
                    presetsPruefen: presetsPruefen, ortsMinuten: ortsMinuten, REGENLAGEN: REGENLAGEN, daemmerung: daemmerung,
                    BLOECKE: BLOECKE, INHALTE: INHALTE, bloeckeBytes: bloeckeBytes,
+                   SYMF: SYMF, symFarbenBytes: symFarbenBytes, W_FEST: W_FEST, zonenBytes: zonenBytes,
                    EBENEN: EBENEN, EBENEN_STD: EBENEN_STD, EBENEN_HINTER: EBENEN_HINTER, ebenenGueltig: ebenenGueltig, ebenenBytes: ebenenBytes,
                    vorlagen: vorlagen, vorlagenBasis: vorlagenBasis, linienBytes: linienBytes, wmoArt: wmoArt, istZelle: istZelle, inhaltGueltig: inhaltGueltig, W_FEST: W_FEST, zellenBytes: zellenBytes,
                    W_TEXT: W_TEXT, TEXT_MAX: TEXT_MAX, textCodes: textCodes, texteBytes: texteBytes, schalterZahl: schalterZahl, NACHTSTUNDEN: NACHTSTUNDEN };

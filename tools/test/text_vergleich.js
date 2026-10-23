@@ -20,8 +20,9 @@ function seitePixel(opt, farben) {                 // red pixels of the page pre
     for (var i = x; i < x + w; i++) for (var j = y; j < y + hh; j++) if (i >= 0 && i < 200 && j >= 0 && j < 228) px[i + ',' + j] = 1;
   };
   ['fillText', 'strokeText', 'beginPath', 'moveTo', 'lineTo', 'stroke'].forEach(function (n) { ctx[n] = function () {}; });
-  global.document = { getElementById: function (id) { return el[id] || (el[id] = { innerHTML: '', getContext: function () { return ctx; } }); }, location: '' };
-  new Function(html.split('<script>')[1].split('</script>')[0])();
+  global.document = { getElementById: function (id) { return el[id] || (el[id] = { innerHTML: '', getContext: function () { return ctx; } }); }, location: '',
+                      createElement: function () { return {}; }, body: { appendChild: function (s) { new Function(s.text)(); } } };   // 0.34.0: loader
+  require('vm').runInThisContext(html.split('<script>')[1].split('</script>')[0]);
   return px;
 }
 function uhrPixel(opt, farben) {                   // red pixels of the watch

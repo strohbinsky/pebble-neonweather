@@ -14,7 +14,7 @@ speicher.optionen = JSON.stringify({ datumbalken: true, regenunten: true, sonnen
 speicher.balken = '0000AA';
 h.ready();
 var d0 = gesendet[0];
-assert.strictEqual(d0.BEREIT, 1); assert.strictEqual(d0.FARBEN.length, 76); assert.strictEqual(d0.FARBEN[8], 0x02, 'old bar colour blue');
+assert.strictEqual(d0.BEREIT, 1); assert.strictEqual(d0.FARBEN.length, 83); assert.strictEqual(d0.SYMFARBEN.length, 117); assert.strictEqual(d0.FARBEN[8], 0x02, 'old bar colour blue');
 assert.strictEqual(d0.OPTIONEN & 511, 4 + 8 + 256, 'row 2 left/right from the date bars, time');
 assert.strictEqual(d0.OPTIONEN >> 11 & 3, 1, 'rain at the bottom taken over');
 assert.strictEqual(d0.OPTIONEN >> 25 & 1, 1, 'whoever had bottom stays relative');
@@ -32,8 +32,9 @@ function oeffnen() {
   global.knoten = function (id) { return el[id] || (el[id] = { id: id, innerHTML: '', value: '' }); };
   knoten('v').getContext = function () { return { fillRect: function () { zeichnungen.n++; }, fillText: function () {}, strokeText: function () {},
     beginPath: function () {}, moveTo: function () {}, lineTo: function () {}, stroke: function () {} }; };
-  global.document = { getElementById: knoten, location: '' };
-  new Function(html.split('<script>')[1].split('</script>')[0])();
+  global.document = { getElementById: knoten, location: '', createElement: function () { return {}; },
+                      body: { appendChild: function (s) { new Function(s.text)(); } } };   // 0.34.0: the loader unpacks and runs the page script
+  require('vm').runInThisContext(html.split('<script>')[1].split('</script>')[0]);   // global, like a script tag: ZS for the page
   return zeichnungen;
 }
 function klick(attr, wert) { knoten('inhalt').onclick({ target: { getAttribute: function (a) { return a === attr ? wert : null; }, parentNode: null } }); }
@@ -53,8 +54,15 @@ assert.ok(hat("data-sp='en' class='a'") && hat('Rows &amp; content') === false &
 assert.strictEqual(knoten('ok').textContent, 'Save'); assert.strictEqual(knoten('hw').textContent, 'Preview with sample data, simplified font');
 // Numbers and bars: change blocks, bar and colour per block
 klick('data-sek', 'zahlen');
-assert.strictEqual(zaehle(/<select data-in=/g), 8, 'eight blocks'); assert.strictEqual(zaehle(/<option /g), 8 * 66, '66 contents each (0.30.0)'); assert.strictEqual(zaehle(/<optgroup /g), 56, 'seven groups per block');
-waehle('inhalt_2l', 4);                                     // row 2 left: high instead of day
+// content menu (0.34.0): a button per block, tiles by group below the card; symbols as icons
+assert.strictEqual(zaehle(/data-pk='inhalt_/g), 8, 'eight blocks'); assert.strictEqual(zaehle(/data-iw=/g), 0, 'menus closed');
+klick('data-pk', 'inhalt_2l'); assert.strictEqual(zaehle(/data-iw='inhalt_2l:/g), 72, '72 contents (0.34.0: 5 new symbols, 0.36.0: time zone)');
+assert.ok(hat("data-iw='inhalt_2l:32'>Time zone<"), 'time zone under date & time');
+assert.strictEqual(zaehle(/<span class='sy[^']*' data-iw='inhalt_2l:/g), 48, 'icons: 9 smart, 39 fixed'); assert.ok(hat('>Date & time<') && hat('<svg '));
+assert.strictEqual(zaehle(/class='a' data-iw='inhalt_2l:1'/g), 1, 'current content marked');
+klick('data-iw', 'inhalt_2l:4'); assert.strictEqual(zaehle(/data-iw=/g), 0, 'menu closes after the choice');
+assert.strictEqual(antwort().tag.optionen.inhalt_2l, 4, 'row 2 left: high instead of day');
+klick('data-pk', 'inhalt_2l'); klick('data-pk', 'inhalt_2l'); assert.strictEqual(zaehle(/data-iw=/g), 0, 'second tap closes');
 klick('data-sw', 'balken_1l');
 klick('data-k', 'z_auf2'); assert.strictEqual(zaehle(/class='f/g), 65, 'palette with "main color" (0.30.0)'); klick('data-c', 'FFAA00');
 // Symbols and curve (0.22.0): the preview draws them, curve colours selectable
@@ -67,11 +75,12 @@ waehle('inhalt_4l', 18);                                   // pressure curve in 
   assert.strictEqual(zaehle(new RegExp("data-k='" + k + "'", 'g')), /^(kurve|k_kante|k_rand|b_kurve|b_kante|b_rand)$/.test(k) ? 2 : 1, 'colour ' + k + ' (0.28.0: line and edge also in the curve block card, 0.32.0 the outline too)');
 });
 klick('data-k', 'k_kante'); klick('data-c', '0055AA'); klick('data-k', 'b_rand'); klick('data-c', 'FFFFFF'); klick('data-sek', 'kurven');
-assert.strictEqual(zaehle(/data-in='zweit_/g), 2, 'right cell only with symbols (row 5); curve and baro with hPa take the whole block');
+assert.strictEqual(zaehle(/data-pk='zweit_/g), 2, 'right cell only with symbols (row 5); curve and baro with hPa take the whole block');
 waehle('inhalt_1l', 13); waehle('zweit_1l', 72); waehle('zweit_5l', 76);   // umbrella + fixed windsock, umbrella + fixed sun and cloud
-assert.strictEqual(zaehle(/data-in='zweit_1l'/g), 1); assert.ok(hat("<optgroup label='Date &amp; time'>") || hat("<optgroup label='Date & time'>"));
-assert.strictEqual((knoten('inhalt').innerHTML.split("data-in='zweit_1l'")[1].split('</select>')[0].match(/<option /g) || []).length, 43, 'right: empty, 8 smart, 8 positive, 26 fixed');
-for (var wi = 9; wi <= 31; wi++) { waehle('inhalt_4r', wi); waehle('zweit_4r', wi === 30 ? 31 : 0); }   // every kind once in the preview (0.30.0: 20–31)
+assert.strictEqual(zaehle(/data-pk='zweit_1l'/g), 1); klick('data-pk', 'zweit_1l');
+assert.strictEqual(zaehle(/data-iw='zweit_1l:/g), 48, 'right: empty, 8 smart, 13 positive, 26 fixed'); assert.ok(!hat('>Date & time<'), 'no numbers on the right');
+assert.ok(hat("title='Windsock'") && hat("class='sy a' data-iw='zweit_1l:72'"), 'windsock chosen'); klick('data-pk', 'zweit_1l');
+for (var wi = 9; wi <= 32; wi++) { waehle('inhalt_4r', wi); waehle('zweit_4r', wi === 30 ? 31 : 0); }   // every kind once in the preview (0.30.0: 20–31, 0.36.0: 32)
 logik.INHALTE.map(function (n, j) { return j; }).slice(64).forEach(function (w) { waehle('inhalt_4r', w); waehle('zweit_4r', 161 - w); });
 waehle('inhalt_4l', 3);
 assert.strictEqual(antwort().tag.optionen.zweit_1l, 72); assert.strictEqual(antwort().tag.farben.b_rand, 'FFFFFF');
@@ -245,7 +254,7 @@ var z8 = oeffnen(); klick('data-tab', 'tag'); klick('data-sek', 'regen'); klick(
 klick('data-rd', 'regenlage:0'); klick('data-sek', 'regen');
 klick('data-sek', 'zahlen');
 assert.strictEqual(zaehle(/data-tx=/g), 0, 'no text field without free text');
-waehle('inhalt_2l', 19); assert.strictEqual(zaehle(/data-tx='text_2l'/g), 1, 'text field'); assert.strictEqual(zaehle(/data-in='zweit_2l'/g), 0, 'free text takes the whole block');
+waehle('inhalt_2l', 19); assert.strictEqual(zaehle(/data-tx='text_2l'/g), 1, 'text field'); assert.strictEqual(zaehle(/data-pk='zweit_2l'/g), 0, 'free text takes the whole block');
 function tippe(k, v, fertig) {                             // type into the text field: input while typing, change when done
   var t = { getAttribute: function (a) { return a === 'data-tx' ? k : null; }, value: v };
   knoten('inhalt').oninput({ target: t }); if (fertig) knoten('inhalt').onchange({ target: t });
@@ -279,6 +288,27 @@ klick('data-k', 'sf_mond'); assert.ok(hat('block color'), 'family colour inherit
 klick('data-k', 'sf_mond'); klick('data-c', 'FFFF55'); waehle('inhalt_1l', 16); waehle('inhalt_4r', 12);   // moon, baro with hPa in the preview
 var a8 = antwort();
 assert.deepStrictEqual([a8.tag.farben.sf_mond, a8.tag.farben.sf_pfeil, a8.tag.farben.kante_2l], ['FFFF55', '', 'AA0000']);
+// symbols (0.34.0): 3D switch off by default, family outline with "no outline", grid of all symbols, card per symbol
+assert.ok(hat("data-sw='sym3d'") && !antwort().tag.optionen.sym3d, '3D edge on symbols: switch, off');
+assert.strictEqual(zaehle(/data-k='sr_/g), 7, 'outline per family'); klick('data-k', 'sr_freude');
+assert.ok(hat("data-c='none'") && hat('block outline'), 'palette with "no outline" and "block outline"'); klick('data-c', 'none');
+assert.strictEqual(antwort().tag.farben.sr_freude, 'none'); assert.ok(hat("class='k o'"), 'crossed-out swatch');
+assert.strictEqual(zaehle(/data-sy='/g), 39, 'grid: 39 symbols'); assert.strictEqual(zaehle(/<i><\/i>/g), 0, 'no symbol with own colours yet');
+klick('data-sy', '36'); assert.ok(hat('>Alpaca with glasses<') && hat("data-k='sy36p'") && hat("data-k='sy36s'") && hat("data-k='sy36r'"), 'alpaca card: three colours');
+klick('data-k', 'sy36p'); assert.ok(hat('family color') && zaehle(/class='f/g) === 65); klick('data-c', 'FFFFAA');
+klick('data-k', 'sy36r'); klick('data-c', 'none'); klick('data-k', 'sy36s'); klick('data-c', '000000');
+var as = antwort(); assert.deepStrictEqual([as.tag.farben.sy36p, as.tag.farben.sy36s, as.tag.farben.sy36r], ['FFFFAA', '000000', 'none']);
+assert.strictEqual(zaehle(/<i><\/i>/g), 1, 'dot on the alpaca');
+klick('data-sy', '38'); assert.ok(!hat("data-k='sy38s'"), 'fluffy cloud: one colour, no secondary without 3D');
+klick('data-sw', 'sym3d'); assert.ok(hat("data-k='sy38s'"), 'with 3D the secondary is the edge'); klick('data-sw', 'sym3d'); klick('data-sy', '38');
+h.webviewclosed({ response: document.location.split('#')[1] }); var dsy = gesendet[gesendet.length - 1];
+assert.deepStrictEqual(dsy.SYMFARBEN.slice(36 * 3, 37 * 3), [0x3E, 0x00, 128], 'alpaca to the watch'); assert.strictEqual(dsy.FARBEN[82], 128, 'positive: no outline');
+oeffnen(); klick('data-sek', 'ziffern'); klick('data-tab', 'nacht'); klick('data-sy', '36'); klick('data-k', 'sy36p'); klick('data-c', 'FF0000');
+assert.strictEqual(zaehle(/data-reset='sy:36'/g), 1, 'night ↺ for the symbol'); klick('data-reset', 'sy:36');
+assert.ok(!('sy36p' in antwort().nacht.farben), 'night back to the day colours'); klick('data-tab', 'tag'); klick('data-sy', '36');
+klick('data-sy', '36'); ['sy36p', 'sy36s', 'sy36r'].forEach(function (k) { klick('data-k', k); klick('data-c', ''); }); klick('data-k', 'sr_freude'); klick('data-c', '');
+klick('data-sy', '36'); antwort(); h.webviewclosed({ response: document.location.split('#')[1] });
+assert.deepStrictEqual(gesendet[gesendet.length - 1].SYMFARBEN.slice(36 * 3, 37 * 3), [64, 64, 64], 'alpaca back to the family'); klick('data-sek', 'zahlen');   // as before: both sections open
 // night: own text and edge, one ↺ for the block takes both back
 klick('data-tab', 'nacht'); tippe('text_2l', 'Mond', true); klick('data-k', 'kante_2l'); klick('data-c', '5555FF');
 klick('data-k', 'rand_2l'); klick('data-c', 'FFFFFF'); assert.strictEqual(antwort().nacht.farben.rand_2l, 'FFFFFF', 'night outline');
@@ -287,7 +317,7 @@ klick('data-reset', 'blk:2'); a8 = antwort(); assert.ok(!('text_2l' in a8.nacht.
 tippe('text_2l', 'Nachts', true); klick('data-tab', 'tag'); antwort();
 h.webviewclosed({ response: document.location.split('#')[1] });
 var d8 = gesendet[gesendet.length - 1];
-assert.strictEqual(d8.SCHALTER >> 7 & 1, 1, 'axis to the watch'); assert.strictEqual(d8.FARBEN.length, 76);
+assert.strictEqual(d8.SCHALTER >> 7 & 1, 1, 'axis to the watch'); assert.strictEqual(d8.FARBEN.length, 83);
 assert.strictEqual(d8.FARBEN[43 + 2], 0x20, 'edge row 2 left AA0000'); assert.strictEqual(d8.FARBEN[43 + 3], 64, 'edge row 2 right inherits');
 assert.strictEqual(d8.FARBEN[43 + 9 + 4], 0x3D, 'moon FFFF55'); assert.strictEqual(d8.FARBEN[43 + 9], 64, 'arrows inherit');
 assert.deepStrictEqual(d8.TEXTE.slice(0, 7), [0, 0, 4, 83, 69, 66, 39], "block 2: SEB'");
@@ -299,7 +329,7 @@ klick('data-ps', 'import'); var ti = vollP(antwort().presets.slice(-1)[0]);
 assert.deepStrictEqual([ti.tag.farben.kante_1l, ti.tag.farben.sf_mond, ti.tag.farben.grund === '', ti.tag.optionen.text_1l, typeof ti.tag.optionen.text_1r], ['', '00FF00', false, 'abc', 'string']);
 assert.deepStrictEqual(ti.nacht.farben, { sf_alt: '' });
 // textCodes on the page = logik.js (same rule, same character list from schrift.js)
-var src = (function () { h.showConfiguration(); return seitenHtml(); })();
+var src = require('fs').readFileSync(path.resolve(__dirname, '../../src/seite/einstellungen.html'), 'utf8');   // the source: the page itself is packed since 0.34.0
 var fn = new Function('SC', src.split('<script>')[1].split('function familie')[0].split('var TEXT_SONDER')[1].replace(/^/, 'var TEXT_SONDER') +
                       '; return { textCodes: textCodes };')(require('../../src/pkjs/schrift'));
 ['Hallo Wélt! ß ♥', 'abc', '', 'ÆØÅ ÇÑ', '12:30', "Seb's", '#a~b', '-5°', 'Grüße'].forEach(function (t) { assert.deepStrictEqual(fn.textCodes(t), logik.textCodes(t), 'textCodes ' + t); });
@@ -309,10 +339,13 @@ oeffnen(); klick('data-tab', 'tag'); klick('data-sp', 'de');
 assert.ok(hat("data-sp='de' class='a'") && hat('>Zeilen und Inhalte<') && hat('>Sonnenstand<') && !hat('>Rows & content<'), 'sections in German');
 assert.strictEqual(knoten('ok').textContent, 'Speichern'); assert.strictEqual(knoten('std').textContent, 'Alle Farben auf Standard');
 assert.strictEqual(knoten('hw').textContent, 'Vorschau mit Beispieldaten, Schrift vereinfacht');
-klick('data-sek', 'zahlen'); assert.ok(hat("<optgroup label='Datum und Zeit'>") && hat('>Tiefstwert<') && hat('>Mondsichel zunehmend<') && hat('>Balken Zeile') === false);
-assert.ok(hat('>Wochentag<') && hat('>Kleeblatt<') && hat("<optgroup label='Positive Symbole'>") && hat('>Wie Uhr<'), 'new contents in German (0.30.0)');
+klick('data-sek', 'zahlen'); klick('data-pk', 'inhalt_4l');
+assert.ok(hat('>Datum und Zeit<') && hat('>Tiefstwert<') && hat("title='Mondsichel zunehmend'") && hat('>Balken Zeile') === false);
+assert.ok(hat('>Wochentag<') && hat("title='Kleeblatt'") && hat("title='Alpaka mit Sonnenbrille'") && hat('>Positive Symbole<') && hat('>Wie Uhr<'), 'new contents in German (0.30.0, 0.34.0)');
+klick('data-pk', 'inhalt_4l');
 klick('data-sek', 'ziffern');
-waehle('inhalt_1l', 19); waehle('inhalt_2r', 10); assert.ok(hat('Ein Zeichen über jeder Ziffer') && hat("placeholder='Dein Text'") && hat('>Freier Text<') && hat('>Symbolfarben<') && hat('>Mond<'), 'new texts in German (0.28.0)');
+waehle('inhalt_1l', 19); waehle('inhalt_2r', 10); assert.ok(hat('Ein Zeichen über jeder Ziffer') && hat("placeholder='Dein Text'") && hat('>Freier Text<') && hat('>Symbolfamilien<') && hat('>Mond<'), 'new texts in German (0.28.0)');
+assert.ok(hat('>Einzelne Symbole<') && hat('>3D-Kante bei Symbolen<') && hat('Primär') && hat('Sekundär'), 'symbol colours in German (0.34.0)');
 klick('data-k', 'sf_mond'); assert.ok(hat('Blockfarbe')); klick('data-k', 'sf_mond');
 assert.ok(hat('>Hauptfarbe<') && hat('>Ziffern und Symbole<'), 'Digits & symbols in German');
 klick('data-k', 'sk_alt'); assert.ok(hat('3D-Kante des Blocks') && hat('>Status: Daten veraltet, Akku, Handy<')); klick('data-k', 'sk_alt');
@@ -397,6 +430,6 @@ delete global.location; delete global.history;
 oeffnen(); assert.notStrictEqual(antwort().presets.slice(-1)[0].name, 'Reload', 'a fresh page starts from the phone');
 // size: the data URL (Base64)
 h.showConfiguration(); console.log('settings page as data URL: ' + Math.round(url.length / 1024) + ' KB');
-assert.ok(url.length < 130 * 1024, 'data URL below 130 KB');
+assert.ok(url.length < 96 * 1024, 'data URL below 96 KB — the size known to open on the phone (0.25.0); packed since 0.34.0');
 console.log('0.30.0 ok: sections, time axis, time format, main colour, family ↺, header counts, preview controls, reload, size');
 console.log('page ok: 9 sections, sun position, layers, 8 blocks with content/bar/colours, rain, baro line, widths, night with ↺ per block, presets, old settings, English/German');

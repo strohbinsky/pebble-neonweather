@@ -99,7 +99,8 @@ def shot(name, weather, time, preset=None, o=None, f=None, ohne_nacht=False, alt
     y, mo, d = w["day"]
     t = int(datetime(y, mo, d, *(int(x) for x in time.split(":")), tzinfo=timezone.utc).timestamp())
     env = dict(ENV0, TZ="UTC", WETTER="/tmp/nw-shot.bin", WETTER2="/tmp/nw-shot2.bin", TAG="%04d%02d%02d" % w["day"], UHR="/tmp/nw-shot.uhr",
-               ALTER=str(alter), AKKU="80", SCHRITTE="8432", PULS="64", **(env_mehr or {}))   # watch values: sample numbers
+               ALTER=str(alter), AKKU="80", SCHRITTE="8432", PULS="64")   # watch values: sample numbers
+    env.update(env_mehr or {})                         # may replace TZ too (time zone picture, 0.36.0)
     subprocess.run(["/tmp/neonweather-shots", str(t), "/tmp/nw-shot.raw"], env=env, check=True)
     png(Path("/tmp/nw-shot.raw").read_bytes(), OUT / f"{name}.png")
     print(name)
@@ -188,6 +189,14 @@ shot("feature-outlines", "autumn", "10:33", o={"zeile5": True},
 # layers (0.33.0): default order, then rain in front of the bars and the time lines in front of everything, digits included
 shot("feature-layers-default", "april", "12:05", o={"tageslinie": True, "voll_v": True, "staerke_v": 4})
 shot("feature-layers", "april", "12:05", o={"tageslinie": True, "voll_v": True, "staerke_v": 4, "ebenen": "013425786"})
+# time zone (0.36.0): the abbreviation across row 1, the offset in row 5 next to the weekday (zone of the Mac preview: Berlin)
+shot("feature-timezone", "autumn", "10:33", o={"zeile1": True, "inhalt_1l": 32, "inhalt_1r": 0, "zeile5": True, "inhalt_5l": 32, "inhalt_5r": 20},
+     env_mehr={"TZ": "Europe/Berlin"})
+# symbols (0.34.0): flat by default, new ones (butterfly, sleeping smiley, two alpacas, fluffy cloud), colours per symbol
+shot("feature-symbol-colors", "autumn", "21:40", o={"zeile1": True, "zeile5": True, "inhalt_1l": 98, "zweit_1l": 99, "inhalt_1r": 100, "zweit_1r": 101,
+     "inhalt_5l": 102, "zweit_5l": 90, "inhalt_5r": 76, "zweit_5r": 81},
+     f={"sy34p": "FF55AA", "sy34s": "AA0055", "sy35p": "FFFF55", "sy35s": "AA5500", "sy36p": "FFFFAA", "sy36s": "550055", "sy37p": "FFFFFF", "sy37s": "000000",
+        "sy38p": "AAFFFF", "sy26p": "FF0055", "sy12p": "FFFF55", "sy17p": "FFFFAA", "sy17s": "555555"})
 
 # ---------- Settings page (Brave or Chrome headless; BROWSER=<path> to choose) ----------
 BROWSER = os.environ.get("BROWSER") or next((b for b in ("/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
@@ -217,4 +226,6 @@ seite("settings-presets", offen("presets", "teilen=0;"), 1250)
 seite("settings-sun", offen("sonne", "z.tag.optionen.sonne=true;z.tag.optionen.sonne_streifen=true;"), 1600)
 seite("settings-german", "sp='de';" + offen("regen"), 1150)
 seite("settings-digits", offen("ziffern"), 1500)
-seite("settings-layers", offen("ebenen", "z.tag.optionen.ebenen='013425786';"), 1500)   # 0.33.0                 # 0.30.0: main colour, 3D edge, symbol families
+seite("settings-layers", offen("ebenen", "z.tag.optionen.ebenen='013425786';"), 1500)   # 0.33.0
+seite("settings-symbols", offen("ziffern", "symWahl=36;z.tag.farben.sy36p='FFFFAA';z.tag.farben.sy36s='550055';z.tag.farben.sy34p='FF55AA';z.tag.farben.sy26p='FF0055';"), 2600)   # 0.34.0
+seite("settings-picker", offen("zahlen", "offen='pk:inhalt_2r';"), 2000)   # 0.34.0: content menu                 # 0.30.0: main colour, 3D edge, symbol families

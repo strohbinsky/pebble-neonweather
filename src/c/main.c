@@ -31,7 +31,9 @@
 #define FEHLT         255    // byte value for "no value"
 
 enum { PK_WETTER = 1, PK_TAG, PK_STAND, PK_FORMAT, PK_THEMA_TAG = 20, PK_THEMA_NACHT, PK_NACHTMODUS, PK_TEXT_TAG, PK_TEXT_NACHT,
-       PK_WETTER2, PK_GLOBAL };   // 0.30.0
+       PK_WETTER2, PK_GLOBAL,     // 0.30.0
+       PK_SYMF_TAG, PK_SYMF_NACHT,   // 0.34.0: colours per symbol
+       PK_ZONE };                    // 0.36.0: time zone abbreviations from the phone
 // keys 5–19: settings stored one by one until 0.10.0, deleted on load
 
 // ---------- Colours: all of them selectable in the settings (since 0.5.0) ----------
@@ -47,6 +49,8 @@ enum { F_GRUND, F_SAEULE, F_REGEN, F_DRUCK, F_JETZT, F_ZIFFER, F_RAND, F_KANTE, 
        F_SK_PFEIL, F_SK_SCHIRM, F_SK_WARNUNG, F_SK_WETTER, F_SK_MOND, F_SK_ALT,   // 0.30.0: 3D edge per symbol family; ERBEN = the block's
        F_SF_FREUDE, F_SK_FREUDE,                    // 0.30.0: family of the positive symbols (heart, smiley …): colour, 3D edge
        F_RAND_B, F_RAND_ZEIT = F_RAND_B + 8,        // 0.32.0: digit outline per block 0–7 and of the time; ERBEN = the common outline
+       F_SR_PFEIL, F_SR_SCHIRM, F_SR_WARNUNG, F_SR_WETTER, F_SR_MOND, F_SR_ALT, F_SR_FREUDE,   // 0.34.0: outline per symbol family;
+                                                    // ERBEN = the block's, OHNE = no outline
        F_ANZAHL };   // F_RAHMEN_Z since 0.19.0   // F_ZIFFER = digits of the time; always append new colours at the end (0.10.0: F_Z_…, 0.12.0: F_S_…, 0.14.0: sun rows)
 // since 0.9.0 no own colours for past hours: every hour looks the same
 static const int32_t FARBE_STD[F_ANZAHL] = {
@@ -100,8 +104,10 @@ static const int32_t FARBE_STD[F_ANZAHL] = {
   -1, -1, -1, -1, -1, -1,               // 3D edge per symbol family: inherit
   -1, -1,                               // positive symbols: colour and 3D edge inherit
   -1, -1, -1, -1, -1, -1, -1, -1, -1,   // outline per block and of the time: inherit (0.32.0)
+  -1, -1, -1, -1, -1, -1, -1,           // outline per symbol family: inherit (0.34.0)
 };
 #define ERBEN 0x40                       // colour byte with bit 6: inherit (phone sends 64 for an empty colour, since 0.28.0)
+#define OHNE  0x80                       // colour byte with bit 7: no colour — outline off (0.34.0, symbol outlines only)
 static uint8_t farb_code(int32_t hex) { return hex < 0 ? ERBEN : ((hex >> 16 & 255) / 85) << 4 | ((hex >> 8 & 255) / 85) << 2 | (hex & 255) / 85; }
 // Theme = all settings; one for the day, one for the night (since 0.11.0). A points to the one in effect
 // Number rows as blocks (0.14.0): row 1 at the top, 2, (3 = time, fixed), 4, 5 at the bottom; two blocks each, left/right.
@@ -111,7 +117,8 @@ enum { W_LEER, W_TAG, W_MONAT, W_TMIN, W_TMAX, W_AUF_H, W_AUF_M, W_UNTER_H, W_UN
        W_BKURVE,                                    // 0.23.0
        W_TEXT,                                      // 0.28.0: free text
        W_WOCHENTAG, W_AKKU, W_SCHRITTE, W_PULS, W_RISIKO, W_RISIKO12, W_UV, W_UVMAX, W_WIND, W_BOEEN,   // 0.30.0: numbers
-       W_AKKU_SYM, W_GETRENNT,                      // 0.30.0: smart symbols battery low, phone disconnected; append new contents here, up to 63
+       W_AKKU_SYM, W_GETRENNT,                      // 0.30.0: smart symbols battery low, phone disconnected
+       W_ZONE,                                      // 0.36.0: time zone of the watch; append new contents here, up to 63
        W_ENDE, W_FEST = 64 };                       // W_FEST + s: symbol s, fixed (order as enum SYM_…), since 0.23.0 from 64
 static bool w_gueltig(int w) { return w < W_ENDE || (w >= W_FEST && w < W_FEST + SYM_ANZAHL); }
 static const uint8_t BLOCK_STD[8] = { W_AUF_H, W_AUF_M, W_TAG, W_MONAT, W_TMIN, W_TMAX, W_UNTER_H, W_UNTER_M };
@@ -135,6 +142,7 @@ typedef struct {
   bool zeitmarke, luftdruck, regenvoll, sonne, tageslinie, verlauf, druckvoll, zeile1, zeile5;
   bool saeulen;                         // 0.24.0: subtle column per hour in the background; off = rain only (message SCHALTER, bit 0)
   uint8_t ebenen[E_ANZAHL];             // 0.33.0: layer order, back to front (replaces regen_hinter, SCHALTER bit 1, from 0.25.0)
+  bool sym3d;                           // 0.34.0: symbols with 3D edge (SCHALTER bit 1, free since 0.33.0); off by default, text keeps it
   bool s_tag, s_daem, s_nacht;          // 0.26.0: sun position areas one by one (SCHALTER, bits 2–4); twilight off = night until sunrise
   bool streifen, streifen_voll;         // 0.26.0: sunrise and sunset stripes, solid or dashed (bits 5, 6)
   uint8_t dicke_s;                      // 0.26.0: stripe width 1–20 px (LINIEN byte 3)
@@ -146,6 +154,9 @@ typedef struct {
 } Thema;
 static uint8_t s_text[2][8][TEXT_MAX];  // 0.28.0: free text per theme and block as character codes, 0 = end (message TEXTE, own storage key)
 static Thema s_th[2];
+// 0.34.0: colours per symbol and theme — primary, secondary (dark parts, and the 3D edge when on), outline; ERBEN = the family's,
+// OHNE (outline only) = none. Own message SYMFARBEN and storage key: in the theme it would pass the 256 bytes of a key
+static uint8_t s_symf[2][SYM_ANZAHL][3];
 static const Thema *A = &s_th[0];
 static bool s_nachtmodus;               // setting: night theme from sunset on
 static uint8_t s_zeitformat;            // 0.30.0 (message GLOBAL bits 0–1): 0 like the watch, 1 = 24 h, 2 = 12 h
@@ -177,10 +188,11 @@ static void thema_std(Thema *t) {
   t->s_tag = t->s_daem = t->s_nacht = true; t->streifen_voll = true; t->dicke_s = 2;
 }
 
-static GColor farbe(int i) {
-  const int c = A->farbe[i] & 0x3F;
+static GColor code_farbe(int c) {
+  c &= 0x3F;
   return GColorFromHEX(((c >> 4 & 3) * 0x55) << 16 | ((c >> 2 & 3) * 0x55) << 8 | (c & 3) * 0x55);
 }
+static GColor farbe(int i) { return code_farbe(A->farbe[i]); }
 #define C_GRUND   farbe(F_GRUND)
 #define C_GEIST   farbe(F_SAEULE)
 #define C_REGEN   farbe(F_REGEN)
@@ -528,15 +540,39 @@ static int sym_familie(int s) {
   return s <= SYM_FAELLT ? 0 : s == SYM_SCHIRM ? 1 : s <= SYM_WINDSACK ? 2 : s >= SYM_HERZ ? 6 : s == SYM_VERALTET || s >= SYM_AKKU ? 5 :
          s <= SYM_NEBEL ? 3 : 4;
 }
-static GColor sym_farbe(int s, GColor face) { return farbe_oder(F_FAM[sym_familie(s)], face); }
-static GColor sym_kante(int s) { return farbe_oder(F_FAM_K[sym_familie(s)], C_KANTE); }
-static void symbol(int s, int x, int y, GColor face) {   // part by part, each with its own outline; dark parts flat in the edge colour
+// Since 0.34.0 every symbol can have its own primary, secondary and outline colour; empty = the family's, then the block's
+static const uint8_t F_FAM_R[7] = { F_SR_PFEIL, F_SR_SCHIRM, F_SR_WARNUNG, F_SR_WETTER, F_SR_MOND, F_SR_ALT, F_SR_FREUDE };
+static int sym_code(int s, int j) { return s_symf[A - s_th][s][j]; }
+static GColor sym_farbe(int s, GColor face) {        // primary: own, family, block digit colour
+  return !(sym_code(s, 0) & ERBEN) ? code_farbe(sym_code(s, 0)) : farbe_oder(F_FAM[sym_familie(s)], face);
+}
+static GColor sym_kante(int s) {                     // secondary: own, family, block 3D edge
+  return !(sym_code(s, 1) & ERBEN) ? code_farbe(sym_code(s, 1)) : farbe_oder(F_FAM_K[sym_familie(s)], C_KANTE);
+}
+static bool sym_rand(int s, GColor *c) {             // outline: own, family, block outline; false = none
+  int v = sym_code(s, 2);
+  if (v & ERBEN) v = A->farbe[F_FAM_R[sym_familie(s)]];
+  if (v & OHNE) return false;
+  *c = v & ERBEN ? C_RAND : code_farbe(v);
+  return true;
+}
+// Part by part, each with its own outline; dark parts flat in the secondary colour. 3D edge only when switched on (0.34.0)
+static void symbol(int s, int x, int y, GColor face) {
   face = sym_farbe(s, face);
   const GColor kante = sym_kante(s);
+  GColor rand;
+  const bool mit_rand = sym_rand(s, &rand);
+  const int tiefe = A->sym3d ? TIEFE : 0;
   for (int i = SYM_START[s]; i < SYM_START[s + 1]; i++) {
-    if (!SYM_DUNKEL[i]) { bits_form(SYM_TEIL[i], SYM_GROESSE, SYM_GROESSE, 1, x, y, face, kante, C_RAND); continue; }
-    laeufe(SYM_TEIL[i], SYM_GROESSE, SYM_GROESSE, 1, x, y, 1, C_RAND);
-    laeufe(SYM_TEIL[i], SYM_GROESSE, SYM_GROESSE, 1, x, y, 0, kante);
+    const uint8_t *m = SYM_TEIL[i];
+    if (SYM_DUNKEL[i]) {
+      if (mit_rand) laeufe(m, SYM_GROESSE, SYM_GROESSE, 1, x, y, 1, rand);
+      laeufe(m, SYM_GROESSE, SYM_GROESSE, 1, x, y, 0, kante);
+      continue;
+    }
+    if (mit_rand) for (int k = 0; k <= tiefe; k++) laeufe(m, SYM_GROESSE, SYM_GROESSE, 1, x + k, y + k, 1, rand);
+    for (int k = tiefe; k >= 1; k--) laeufe(m, SYM_GROESSE, SYM_GROESSE, 1, x + k, y + k, 0, kante);
+    laeufe(m, SYM_GROESSE, SYM_GROESSE, 1, x, y, 0, face);
   }
 }
 
@@ -686,6 +722,38 @@ static int raster_rechtecke(uint32_t m, int art, Rechteck *r) {   // filled cell
       s = e;
     }
   return n;
+}
+// Time zone (0.36.0) from the watch's own clock: offset to UTC, and with an empty right block the abbreviation. Two cells:
+// "+2", "-6" (half hours dropped), from 10 hours two digits, negative with the short minus like the temperatures (flag in the
+// return value, bit 3). Four cells: the abbreviation when it has 1–4 letters — in German MEZ, MESZ … —, otherwise the offset
+// with minutes ("+530", "-330"). Returns the number of characters
+// The firmware gives tm_zone "N/A" and no DST flag: the abbreviations come from the phone (message ZONE, 0.36.0), each with the offset
+// it belongs to — now and in half a year, so the switch to winter time works without the phone
+typedef struct { int16_t min; char k[5]; } Zone;
+static Zone s_zonen[2];
+static const char *const ZONE_DE[][2] = { { "CET", "MEZ" }, { "CEST", "MESZ" }, { "WET", "WEZ" }, { "WEST", "WESZ" }, { "EET", "OEZ" },
+                                          { "EEST", "OESZ" } };
+static int zone_zellen(const struct tm *lt, bool frei, char *z) {
+  const int m = (int)lt->tm_gmtoff / 60, h = abs(m) / 60, mi = abs(m) % 60;
+  if (frei) {
+    const char *k = lt->tm_zone;
+    int n = 0;
+    while (k && k[n] && k[n] >= 'A' && k[n] <= 'Z' && n < 5) n++;
+    if (k && n >= 1 && n <= 4 && !k[n]) {
+      for (unsigned i = 0; s_deutsch && i < sizeof ZONE_DE / sizeof ZONE_DE[0]; i++) if (!strcmp(k, ZONE_DE[i][0])) k = ZONE_DE[i][1];
+      for (n = 0; k[n] && n < 4; n++) z[n] = k[n];
+      return n;
+    }
+    for (int i = 0; i < 2; i++)                      // from the phone, when it belongs to the offset in effect
+      if (s_zonen[i].k[0] && s_zonen[i].min == m) { for (n = 0; s_zonen[i].k[n] && n < 4; n++) z[n] = s_zonen[i].k[n]; return n; }
+    char b[8];
+    snprintf(b, sizeof b, mi ? "%c%d%02d" : "%c%d", m < 0 ? '-' : '+', h, mi);
+    for (n = 0; b[n] && n < 4; n++) z[n] = b[n];
+    return n;
+  }
+  if (h < 10) { z[0] = m < 0 ? '-' : '+'; z[1] = '0' + h; return 2; }
+  z[0] = '0' + h / 10 % 10; z[1] = '0' + h % 10;
+  return m < 0 ? 2 | 8 : 2;                         // bit 3: short minus left of the 1
 }
 static void buchstabe(int c, int x, int y, GColor face) {
   if ((c >= '0' && c <= '9') || c == '-') { ziffer(c, x, y, face); return; }
@@ -984,6 +1052,13 @@ static void zeichnen(Layer *l, GContext *ctx) {
           for (int i = 0; i < 2; i++) buchstabe(WOCHENTAG[s_deutsch][lokal.tm_wday % 7][i], SPALTE[2 * sei + i], RY[r], c);
           continue;
         }
+        if (w == W_ZONE) {                            // 0.36.0: time zone
+          char zz[4];
+          const int n = zone_zellen(&lokal, frei, zz);
+          if (n & 8) minus_bei_eins(SPALTE[2 * sei], RY[r], c);
+          for (int i = 0; i < (n & 7); i++) buchstabe(zz[i], SPALTE[2 * sei + i], RY[r], c);
+          continue;
+        }
         if (w >= W_AKKU && w <= W_BOEEN) {            // 0.30.0: numbers, from 100 on into an empty right block
           char zz[4];
           const int n = zahl_zellen(w, neu_wert(w, t, jm, &lokal), frei, zz);
@@ -1056,7 +1131,10 @@ static void empfangen(DictionaryIterator *it, void *ctx) {
   for (int n = 0; n < 2; n++) {                    // day and night: colours and options
     bool neu = false;
     if ((t = dict_find(it, n ? MESSAGE_KEY_FARBEN_N : MESSAGE_KEY_FARBEN)) && t->length == F_ANZAHL) {
-      for (int i = 0; i < F_ANZAHL; i++) s_th[n].farbe[i] = t->value->data[i] & (ERBEN | 0x3F);   // bit 6: inherit (0.28.0)
+      for (int i = 0; i < F_ANZAHL; i++) {         // bit 6: inherit (0.28.0), bit 7: none (0.34.0)
+        const uint8_t b = t->value->data[i];
+        s_th[n].farbe[i] = b & OHNE ? OHNE : b & (ERBEN | 0x3F);
+      }
       neu = true;
     }
     if ((t = dict_find(it, n ? MESSAGE_KEY_OPTIONEN_N : MESSAGE_KEY_OPTIONEN))) { optionen_setzen(&s_th[n], t->value->int32); neu = true; }
@@ -1078,7 +1156,7 @@ static void empfangen(DictionaryIterator *it, void *ctx) {
     }
     if ((t = dict_find(it, n ? MESSAGE_KEY_SCHALTER_N : MESSAGE_KEY_SCHALTER))) {   // 0.24.0: switches as bits, room for more
       const int32_t v = t->value->int32;
-      s_th[n].saeulen = v & 1;                     // bit 1 (rain behind the day, 0.25.0) unused since 0.33.0: layer order
+      s_th[n].saeulen = v & 1; s_th[n].sym3d = v >> 1 & 1;   // bit 1: 0.25.0–0.32.0 rain behind the day, since 0.34.0 3D symbols
       s_th[n].s_tag = v >> 2 & 1; s_th[n].s_daem = v >> 3 & 1; s_th[n].s_nacht = v >> 4 & 1;
       s_th[n].streifen = v >> 5 & 1; s_th[n].streifen_voll = v >> 6 & 1;
       s_th[n].achse = (v >> 7 & 3) < 3 ? v >> 7 & 3 : 0;   // 0.28.0 bit 7: 00–24 h; 0.29.0 value 2: 16–08 h
@@ -1088,6 +1166,13 @@ static void empfangen(DictionaryIterator *it, void *ctx) {
       bool da[E_ANZAHL] = { false }, ok = true;     // only a complete order: every layer exactly once
       for (int i = 0; i < E_ANZAHL; i++) { const int e = t->value->data[i]; if (e >= E_ANZAHL || da[e]) ok = false; else da[e] = true; }
       if (ok) { memcpy(s_th[n].ebenen, t->value->data, E_ANZAHL); neu = true; }
+    }
+    if ((t = dict_find(it, n ? MESSAGE_KEY_SYMFARBEN_N : MESSAGE_KEY_SYMFARBEN)) && t->length == 3 * SYM_ANZAHL) {   // 0.34.0
+      for (int i = 0; i < 3 * SYM_ANZAHL; i++) {
+        const uint8_t b = t->value->data[i];
+        s_symf[n][i / 3][i % 3] = b & OHNE ? (i % 3 == 2 ? OHNE : ERBEN) : b & (ERBEN | 0x3F);
+      }
+      persist_write_data(n ? PK_SYMF_NACHT : PK_SYMF_TAG, s_symf[n], sizeof s_symf[n]);
     }
     if ((t = dict_find(it, n ? MESSAGE_KEY_TEXTE_N : MESSAGE_KEY_TEXTE))) {   // 0.28.0: per block length, then the character codes
       memset(s_text[n], 0, sizeof s_text[n]);
@@ -1104,6 +1189,14 @@ static void empfangen(DictionaryIterator *it, void *ctx) {
     s_zeitformat = (t->value->int32 & 3) < 3 ? t->value->int32 & 3 : 0; s_deutsch = t->value->int32 >> 2 & 1;
     persist_write_int(PK_GLOBAL, t->value->int32);
   }
+  if ((t = dict_find(it, MESSAGE_KEY_ZONE)) && t->length == 12) {   // 0.36.0: two abbreviations with their offsets
+    for (int i = 0; i < 2; i++) {
+      const uint8_t *b = t->value->data + 6 * i;
+      s_zonen[i].min = (int16_t)(b[0] << 8 | b[1]);
+      for (int j = 0; j < 5; j++) s_zonen[i].k[j] = j < 4 && b[2 + j] >= 'A' && b[2 + j] <= 'Z' ? b[2 + j] : 0;
+    }
+    persist_write_data(PK_ZONE, s_zonen, sizeof s_zonen);
+  }
   if ((t = dict_find(it, MESSAGE_KEY_TEST)) && t->value->int32) {   // 0.29.0: by day the night theme, at night the day for TEST_S
     s_test_bis = time(NULL) + TEST_S;
     if (s_test_t) app_timer_cancel(s_test_t);
@@ -1117,9 +1210,13 @@ static void laden(void) {
     thema_std(&s_th[n]);
     const int k = n ? PK_THEMA_NACHT : PK_THEMA_TAG;
     if (persist_exists(k) && persist_read_data(k, &s_th[n], sizeof(Thema)) != (int)sizeof(Thema)) thema_std(&s_th[n]);
+    memset(s_symf[n], ERBEN, sizeof s_symf[n]);     // 0.34.0: every symbol like its family
+    const int ks = n ? PK_SYMF_NACHT : PK_SYMF_TAG;
+    if (persist_exists(ks) && persist_read_data(ks, s_symf[n], sizeof s_symf[n]) != (int)sizeof s_symf[n]) memset(s_symf[n], ERBEN, sizeof s_symf[n]);
     const int kt = n ? PK_TEXT_NACHT : PK_TEXT_TAG;
     if (persist_exists(kt) && persist_read_data(kt, s_text[n], sizeof s_text[n]) != (int)sizeof s_text[n]) memset(s_text[n], 0, sizeof s_text[n]);
   }
+  if (persist_exists(PK_ZONE) && persist_read_data(PK_ZONE, s_zonen, sizeof s_zonen) != (int)sizeof s_zonen) memset(s_zonen, 0, sizeof s_zonen);
   if (persist_exists(PK_NACHTMODUS)) s_nachtmodus = persist_read_int(PK_NACHTMODUS) != 0;
   if (persist_exists(PK_GLOBAL)) { const int32_t v = persist_read_int(PK_GLOBAL); s_zeitformat = (v & 3) < 3 ? v & 3 : 0; s_deutsch = v >> 2 & 1; }
   for (int k = 5; k < 20; k++) persist_delete(k);  // single keys until 0.10.0

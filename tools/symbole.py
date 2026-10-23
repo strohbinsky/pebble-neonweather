@@ -136,7 +136,40 @@ MIT_DUNKEL.update({
     "KAFFEE": [(rect(0, 10, 25, 4) | rect(2, 14, 21, 14) | raster(in_rrect(2, 20, 23, 31, 5), q=1) | rect(25, 14, 8, 11), 0),
                (rect(25, 17, 4, 5), 1), (rect(5, 0, 4, 7) | rect(12, 2, 4, 6) | rect(19, 0, 4, 7), 0)],
 })
-FREUDE = ["HERZ", "SMILEY", "STERN", "HAKEN", "BLUME", "NOTE", "KLEE", "KAFFEE"]
+# 0.34.0 (wish Seb and his daughter, draft v2 in tools/symbole_entwurf_v2.py): finer, on a 1 px grid with ellipses
+def in_ellipse(cx, cy, rx, ry, w=0):      # ellipse turned by w degrees
+    a = math.radians(w)
+    def f(x, y):
+        dx, dy = x - cx, y - cy
+        u, v = dx * math.cos(a) + dy * math.sin(a), -dx * math.sin(a) + dy * math.cos(a)
+        return (u / rx) ** 2 + (v / ry) ** 2 <= 1
+    return f
+def ring(cx, cy, r1, r2): return lambda x, y: r1 <= math.hypot(x - cx, y - cy) <= r2
+def ohne(f, g): return lambda x, y: f(x, y) and not g(x, y)
+def zug(pts, d): return oder(*[in_linie(a, b, d) for a, b in zip(pts, pts[1:])])   # polyline
+def z_form(x, y, s, d): return zug([(x, y), (x + s, y), (x, y + s), (x + s, y + s)], d)   # letter Z, s wide and tall
+FLUEGEL = oder(in_ellipse(9, 11.5, 8.2, 9.5, -38), in_ellipse(25, 11.5, 8.2, 9.5, 38), in_ellipse(11, 25.5, 5.6, 6.4, 30),
+               in_ellipse(23, 25.5, 5.6, 6.4, -30), in_rrect(14, 9, 20, 29, 2))
+ALPAKA = fuellen(raster(oder(in_ellipse(9.5, 5, 2.3, 5.2, -20), in_ellipse(24.5, 5, 2.3, 5.2, 20),        # ears, upright above the fluff
+                             *[in_disc(x, y, r) for x, y, r in ((13, 9.5, 3.4), (17, 8, 3.8), (21, 9.5, 3.4))],   # fluff on the forehead
+                             in_ellipse(17, 16, 7.6, 8.5), in_ellipse(17, 21.5, 6, 4.6),                   # face, muzzle
+                             in_rrect(12, 22, 22, 34, 3)), q=1))                                           # neck
+NASE = raster(oder(in_ellipse(17, 20.8, 2.3, 1.2), in_linie((17, 22), (17, 23.2), 1.1)), q=1)
+BUEGEL = in_linie((16.4, 14), (17.6, 14), 1.2)
+MIT_DUNKEL.update({
+    "SCHMETTERLING": [(fuellen(raster(FLUEGEL, q=1)), 0), (raster(in_ellipse(17, 19.5, 2, 10.5), q=1), 1),
+                      (raster(oder(zug([(16, 9.5), (13.5, 4), (11, 1.5)], 1.4), zug([(18, 9.5), (20.5, 4), (23, 1.5)], 1.4)), q=1), 1),
+                      (raster(oder(in_disc(9, 11, 2.2), in_disc(25, 11, 2.2)), q=1), 1)],
+    "SCHLAEFT": [(raster(in_disc(14.5, 19.5, 14), q=1), 0),   # smaller than the smiley, so the Zz fits; eyes closed, mouth open
+                 (raster(oder(ohne(ring(9, 16, 2.6, 4.6), lambda x, y: y < 16), ohne(ring(20, 16, 2.6, 4.6), lambda x, y: y < 16),
+                              in_ellipse(14.5, 26, 2.6, 2.2)), q=1), 1),
+                 (raster(oder(z_form(25, 1, 7, 2.2), z_form(29.5, 10.5, 4, 1.8)), q=1), 0)],
+    "ALPAKA": [(ALPAKA, 0), (raster(oder(ring(13, 14.5, 2.6, 3.9), ring(21, 14.5, 2.6, 3.9), BUEGEL), q=1), 1), (NASE, 1)],   # glasses: rings
+    "ALPAKA SONNE": [(ALPAKA, 0), (raster(oder(in_disc(13, 14.5, 3.9), in_disc(21, 14.5, 3.9), BUEGEL), q=1), 1), (NASE, 1)],
+    "WOELKCHEN": [(raster(oder(in_disc(9.5, 20.5, 6.5), in_disc(18, 14, 9.5), in_disc(27, 19.5, 6.5), in_rrect(3, 17, 33.5, 28.5, 5.5)), q=1), 0)],
+})
+FREUDE = ["HERZ", "SMILEY", "STERN", "HAKEN", "BLUME", "NOTE", "KLEE", "KAFFEE",
+          "SCHMETTERLING", "SCHLAEFT", "ALPAKA", "ALPAKA SONNE", "WOELKCHEN"]   # 0.34.0
 # Order on the watch = enum SYM_… in src/c/symbole.h; moon phases 0–7 in a row from NEUMOND; append new symbols at the end
 UHR = ["STEIGT", "LEICHT HOCH", "GLEICH", "LEICHT RUNTER", "FAELLT", "SCHIRM", "FROST", "GEWITTER", "WINDSACK", "VERALTET",
        "SONNE", "WOLKE", "SONNE WOLKE", "REGEN", "SCHNEE", "NEBEL",
@@ -153,4 +186,5 @@ NAMEN = {"STEIGT": "Arrow up", "LEICHT HOCH": "Arrow up-right", "GLEICH": "Arrow
          "DREIVIERTEL ZU": "Waxing gibbous", "VOLL": "Full moon", "DREIVIERTEL AB": "Waning gibbous",
          "HALB AB": "Last quarter", "SICHEL AB": "Waning crescent", "AKKU": "Battery empty", "GETRENNT": "Phone disconnected",
          "HERZ": "Heart", "SMILEY": "Smiley", "STERN": "Star", "HAKEN": "Check mark", "BLUME": "Flower", "NOTE": "Music note",
-         "KLEE": "Four-leaf clover", "KAFFEE": "Coffee"}
+         "KLEE": "Four-leaf clover", "KAFFEE": "Coffee", "SCHMETTERLING": "Butterfly", "SCHLAEFT": "Sleeping smiley",
+         "ALPAKA": "Alpaca with glasses", "ALPAKA SONNE": "Alpaca with sunglasses", "WOELKCHEN": "Fluffy cloud"}

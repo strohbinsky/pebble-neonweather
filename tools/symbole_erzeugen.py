@@ -14,9 +14,11 @@ def teile(name):                          # [(mask, dark)] — dark: flat in the
     else:
         assert all(dx == 0 and dy == 0 for _, dx, dy in S.formen(name)), name
         t = [(m, 0) for m, dx, dy in S.formen(name)]
-    for m, _ in t:
+    for m, d in t:
         assert all(0 <= x < 34 and 0 <= y < 34 for x, y in m), f"{name} sticks out of the cell"
-        assert not loch(m), f"{name} has a closed hole — the watch draws symbols without hole handling"
+        # holes only in dark parts (0.34.0: glasses): they are flat, the outline runs inside the hole too and the part below
+        # shows through; a face part with a hole would show the shifted 3D edge in it
+        assert d or not loch(m), f"{name} has a closed hole — the watch draws symbols without hole handling"
     return t
 def loch(m):                              # is there background that cannot be reached from the border?
     aussen, stapel = set(), [(-1, -1)]

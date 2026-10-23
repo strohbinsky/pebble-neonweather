@@ -111,7 +111,7 @@ rows 1 and 5 are optional. Each row has two blocks, and each block shows what yo
 
 | From | Contents |
 | --- | --- |
-| the calendar | day, month, weekday (two letters), sunrise and sunset (hour, minute) |
+| the calendar | day, month, weekday (two letters), sunrise and sunset (hour, minute), time zone (`+2`, or `CEST` across a whole row) |
 | the weather | low, high, temperature now, rain chance now and for the next 12 hours, UV index now and today's max, wind, gusts |
 | your wrist | battery, steps, heart rate |
 | a whole block | temperature curve, pressure curve, pressure trend with hPa, your own text |
@@ -154,7 +154,7 @@ They only turn up when there's a reason — and leave the cell empty when there 
 | Battery low | 20 % or less and not charging |
 | Phone disconnected | the watch has lost the phone |
 
-Or pick any of the 34 symbols to stay put — including eight happy ones:
+Or pick any of the 39 symbols to stay put — including thirteen happy ones:
 
 <p>
   <img src="docs/images/symbols-1.png" width="200" alt="Symbols 1">
@@ -164,7 +164,8 @@ Or pick any of the 34 symbols to stay put — including eight happy ones:
 </p>
 
 *Weather, moon and status symbols, four per row · heart, smiley, star, check mark, flower, music note, four-leaf clover,
-coffee · no fresh data for a while: the crossed-out cloud.*
+coffee · no fresh data for a while: the crossed-out cloud. New: butterfly, sleeping smiley, an alpaca with glasses and one
+with sunglasses, a fluffy cloud.*
 
 ### One main color
 
@@ -182,6 +183,27 @@ family its own color or edge. Here: orange digits with a red edge, blue edges in
 The thin rim around every digit, letter and symbol has a color of its own — one for all, or one per block and for the
 time. Here: a blue rim around the time, pink in row 2, green and orange in row 4, row 5 with the common black one.
 Curves keep their own outline.
+
+<br clear="right">
+
+### Symbol colors
+
+<img src="docs/images/feature-symbol-colors.png" width="200" align="right" alt="Symbol colors">
+
+Symbols are flat icons by default — digits and letters keep their 3D edge, so the numbers stand out (one switch brings the
+edge back for symbols). Every symbol family, and every single symbol, can have a **primary** color (the shape), a
+**secondary** one (eyes, glasses, the dark side of the moon) and an **outline** — or no outline at all. Here: a pink
+butterfly, a sleepy smiley, a beige alpaca, a red heart, the positive symbols without outline.
+
+<br clear="right">
+
+### Time zone
+
+<img src="docs/images/feature-timezone.png" width="200" align="right" alt="Time zone">
+
+A block can show the watch's time zone: `+2` or `-6` in two cells, the name across a whole row when the right block is
+empty — `CEST`, `CDT`, `AEDT`, in German `MESZ`. The phone sends the names with both offsets, so the switch to winter time
+works on the watch alone. Zones without a common name show the offset, `+530`.
 
 <br clear="right">
 
@@ -261,7 +283,18 @@ At night every section tells you how many things you changed.
 </p>
 <p>
   <img src="docs/images/settings-layers.png" width="260" alt="Layers">
+  <img src="docs/images/settings-picker.png" width="260" alt="Content menu">
+  <img src="docs/images/settings-symbols.png" width="260" alt="Symbol colors">
 </p>
+
+*Layers · contents come from a tile menu, symbols as icons in their colors · every symbol with its own colors.*
+
+### Configure on the computer
+
+`neonweather-konfigurator.html` (with every release) is the same settings page for your computer: open it in a browser,
+put your look together with a big preview, then **Code for the Pebble** → **Copy**. On the phone: Presets → **Import**,
+paste, load. Your look stays in the browser for next time, and it works the other way round too: share a preset on the
+phone and import it on the computer.
 
 ### Share a preset
 
@@ -270,7 +303,7 @@ done. Up to 20 presets of your own, each with its day and night.
 
 ## Install
 
-1. Download `neonweather.pbw` from the [releases](../../releases)
+1. Download `neonweather.pbw` from the [releases](../../releases) (and `neonweather-konfigurator.html` if you like)
 2. Open it on your phone with the Pebble app — it installs on the watch
 3. Allow location when asked: the weather is for where you are. Steps and heart rate need the health permission
 
@@ -284,7 +317,9 @@ Pebble Time 2 (emery) only.
 - Today and tomorrow (and yesterday evening, for the night axis) go to the watch in two packets of 236 and 144 bytes and
   stay there, so the night after midnight still has its weather
 - Battery, steps and heart rate come from the watch itself; heart rate is the last reading, nothing extra is measured
-- The settings page travels as a Base64 data URL, presets as differences from the default
+- The settings page travels as a data URL; its script is packed (deflate) at build time and unpacked in the page — 76 KB
+  instead of 126. Presets travel as differences from the default
+- No `Intl` on the phone: it crashes the JS engine of the emulator. Time zone names come from the offsets in January and July
 - No text on the watch, so no language either. The settings page speaks English and German
 
 ## Building
@@ -293,11 +328,13 @@ Pebble SDK 4.x (`pebble` tool), Node.js for the tests. The comments are English;
 it started out as a private project.
 
 ```bash
-tools/bauen.sh                      # build outside the source folder → dist/neonweather.pbw
+tools/bauen.sh                      # build outside the source folder → dist/neonweather.pbw and the configurator
 tools/bauen.sh emu                  # build + emery emulator
 node tools/test/logik_test.js       # weather packet, sun and twilight, colors, presets
 node tools/test/seite_test.js       # settings page: sections, night, presets, sharing, German
 node tools/test/text_vergleich.js   # free text: the preview places the same letters as the watch
+node tools/test/entpacken_test.js   # the page's inflate against zlib
+node tools/test/konfigurator_test.js   # configurator: code, import check
 tools/vorschau/rendern.sh out.png   # render main.c on the Mac, no SDK needed
 python3 tools/screenshots.py docs/images   # every picture in this README
 ```
