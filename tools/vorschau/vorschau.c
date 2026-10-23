@@ -1,7 +1,9 @@
 // Renders the display of main.c with test values into a raw file (200x228 RGB); png.py turns it into a PNG.
 // Run: TZ=Europe/Berlin vorschau <unix time> <out.raw>
-// Environment: WETTER=<file as sent by the phone: 184 bytes, or 88 without hourly values (before 0.22.0)>, TAG=YYYYMMDD (default: today),
-// ALTER=<s since the last fetch> (default 600), UHR=<settings file, see uhr_laden()>, single settings further down in main()
+// Environment: WETTER=<file as sent by the phone: 236 bytes, 212 without the evening before (before 0.29.0), 184 without the night
+// hours (before 0.28.0) or 88 without hourly values (before 0.22.0)>, TAG=YYYYMMDD (default: today),
+// ALTER=<s since the last fetch> (default 600), UHR=<settings file, see uhr_laden()>, single settings further down in main(),
+// WETTER2=<file with the second packet, 144 bytes> (0.30.0); battery, steps, heart rate, 12 h: see pebble.h
 #define main pebble_main
 #include "../../src/c/main.c"
 #undef main
@@ -20,7 +22,9 @@ static const struct { const char *name; int key; bool liste; } SCHLUESSEL[] = {
   { "LINIEN", MESSAGE_KEY_LINIEN, true }, { "LINIEN_N", MESSAGE_KEY_LINIEN_N, true },
   { "ZELLEN", MESSAGE_KEY_ZELLEN, true }, { "ZELLEN_N", MESSAGE_KEY_ZELLEN_N, true },
   { "SCHALTER", MESSAGE_KEY_SCHALTER, false }, { "SCHALTER_N", MESSAGE_KEY_SCHALTER_N, false },
-  { "NACHTMODUS", MESSAGE_KEY_NACHTMODUS, false } };
+  { "TEXTE", MESSAGE_KEY_TEXTE, true }, { "TEXTE_N", MESSAGE_KEY_TEXTE_N, true },   // 0.28.0
+  { "NACHTMODUS", MESSAGE_KEY_NACHTMODUS, false }, { "TEST", MESSAGE_KEY_TEST, false },   // TEST 1: the other theme (0.29.0)
+  { "GLOBAL", MESSAGE_KEY_GLOBAL, false } };   // 0.30.0: time format, weekday language
 static void uhr_laden(const char *pfad) {
   static char zeile[4096];
   char name[32];
@@ -53,8 +57,12 @@ int main(int argc, char **argv) {
   FILE *f = getenv("WETTER") ? fopen(getenv("WETTER"), "rb") : NULL;
   memset(s_wetter, FEHLT, WETTER_LEN);                       // hourly values are missing unless the file has them
   for (int d = 0; d < 2; d++) memset(s_wetter + 2 * TAG_LEN + d * ERW_LEN, 0x80, 24);   // temperature: -128
+  memset(s_wetter + VOR_OFF + 16, 0x80, 8);                // evening before: temperature -128 (0.29.0)
   if (f && fread(s_wetter, 1, WETTER_LEN, f) >= 2 * TAG_LEN) s_hat_wetter = true;
   if (f) fclose(f);
+  FILE *f2 = getenv("WETTER2") ? fopen(getenv("WETTER2"), "rb") : NULL;   // 0.30.0
+  if (f2 && fread(s_w2, 1, W2_LEN, f2) == W2_LEN) s_hat_w2 = true;
+  if (f2) fclose(f2);
   s_tag = getenv("TAG") ? atoi(getenv("TAG")) : tag_von(localtime(&FAKE_NOW));
   s_stand = FAKE_NOW - (getenv("ALTER") ? atoi(getenv("ALTER")) : 600);
   laden();
@@ -98,6 +106,8 @@ int main(int argc, char **argv) {
   if (getenv("SONNE")) s_th[0].sonne = true;
   if (getenv("TAGESLINIE")) s_th[0].tageslinie = true;
   if (getenv("OHNE_VERLAUF")) s_th[0].verlauf = false;
+  if (getenv("ACHSE24")) s_th[0].achse = 1;          // 0.28.0
+  if (getenv("ACHSE")) s_th[0].achse = atoi(getenv("ACHSE")) % 3;   // 0.29.0: 0 = 04–20 h, 1 = 00–24 h, 2 = 16–08 h
   if (getenv("UHR")) uhr_laden(getenv("UHR"));
   else {
     if (!getenv("NACHT_FARBEN") && !getenv("NACHT_OPTIONEN")) s_th[1] = s_th[0];

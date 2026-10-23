@@ -1,11 +1,16 @@
 <!DOCTYPE html>
 <!-- Settings page of Neonweather. tools/seite_erzeugen.py turns it into src/pkjs/seite.js; the phone script fills in
      the state (z: day, night, presets), the colour list (L), the pressure positions (D), the block contents (IN) and
-     the blocks (BL) from logik.js plus the symbols for the preview (SY, from symbole.js, since 0.22.0) at the bottom of the script and opens it as a data: URL. The placeholders must appear there and nowhere else.
+     the blocks (BL) from logik.js plus the symbols for the preview (SY, from symbole.js, since 0.22.0) and the font of the free text
+     (SC, from schrift.js, since 0.28.0) at the bottom of the script and opens it as a data: URL. The placeholders must appear there and nowhere else.
      Night: z.nacht holds only changed values; everything else the night shows and takes from the day.
      Since 0.14.0 in collapsible sections; every colour sits next to its function.
      Presets since 0.21.0: "Load" asks what for — day (the night keeps its look), night (the preset's day look) or both.
-     Language since 0.27.0: the page is written in English; DE holds the German texts, uebersetzen() swaps them in when sp = "de". -->
+     Language since 0.27.0: the page is written in English; DE holds the German texts, uebersetzen() swaps them in when sp = "de".
+     Since 0.28.0: time axis 0–24 h, free text per block, 3D edge per block and colours of the symbol families (empty = inherit).
+     Since 0.30.0: presets arrive as differences from the default (z.std) and the page as Base64; a main digit colour that time, blocks
+     and symbol families inherit (colour and 3D edge); section "Digits & symbols"; time axis below the tabs; small preview while
+     scrolling; sample weather and time for the preview; the page keeps its state in the URL fragment (reloads of the web view). -->
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Neonweather</title>
 <style>
@@ -22,7 +27,7 @@ h1{font-size:20px;margin:0 0 10px}
 .z,.o{display:flex;align-items:center;gap:12px;background:#262626;border-radius:10px;padding:10px 12px;margin-bottom:6px;font-size:16px;cursor:pointer}
 .z small{margin-left:auto;color:#888;font-family:monospace}.o small{display:block;color:#888;font-size:13px}
 .w{opacity:.45}.x{margin-left:8px;color:#FF55FF;font-size:20px;padding:0 4px}
-.k{width:40px;height:24px;border-radius:4px;flex:none;border:1px solid #666;display:inline-block}
+.k{width:40px;height:24px;border-radius:4px;flex:none;border:1px solid #666;display:inline-block}.k.e{border:2px dashed #999}
 .o .r{width:22px;height:22px;border-radius:50%;border:2px solid #888;flex:none}.o .r.a{background:#AA00AA;border-color:#FF55FF}
 .s{width:44px;height:24px;border-radius:12px;background:#444;flex:none;position:relative;margin-left:auto;display:inline-block}
 .s.a{background:#AA00AA}.s:after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff}.s.a:after{left:23px}
@@ -33,6 +38,8 @@ h1{font-size:20px;margin:0 0 10px}
 .mini{display:flex;flex-direction:column;align-items:center;font-size:11px;color:#999;gap:2px;cursor:pointer}
 .p{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;background:#151515;border-radius:10px;padding:8px;margin:-2px 0 10px}
 .f{aspect-ratio:1;border-radius:4px;border:1px solid #333}.f.a{outline:3px solid #fff;outline-offset:-1px}
+.f.fa{grid-column:span 8;aspect-ratio:auto;padding:6px;text-align:center;font-size:13px;color:#ccc;background:#262626}
+.tx{width:100%;font-size:20px;font-family:monospace;letter-spacing:.3em;padding:8px;border-radius:8px;border:1px solid #444;background:#1a1a1a;color:#eee;text-transform:uppercase;margin-top:6px}
 .ps{display:flex;align-items:center;gap:8px;background:#262626;border-radius:10px;padding:10px 12px;margin-bottom:6px;font-size:16px}
 .ps span:first-child{flex:1}.pn{font-style:normal}.ps small{display:block;color:#888;font-size:13px}
 .wahl{flex-wrap:wrap;margin:-2px 0 8px}.wahl b{min-width:40%;font-size:15px}.ps b{font-weight:normal;padding:6px 10px;border-radius:8px;background:#333;cursor:pointer}.ps b.weg{color:#ff7777}
@@ -40,23 +47,72 @@ h1{font-size:20px;margin:0 0 10px}
 .neu b{font-weight:normal;padding:10px 14px;border-radius:10px;background:#333;cursor:pointer}
 .code{background:#1b1b1b;border-radius:10px;padding:8px 10px;margin:-2px 0 8px}.code textarea{width:100%;height:96px;font-size:12px;font-family:monospace;background:#111;color:#ccc;border:1px solid #444;border-radius:8px;padding:6px}.code b{display:inline-block;font-weight:normal;padding:8px 14px;border-radius:8px;background:#333;cursor:pointer}
 button{width:100%;padding:14px;font-size:17px;border:0;border-radius:10px;background:#AA00AA;color:#fff;margin-top:10px}
-button.std{background:#222;color:#ddd;border:1px solid #555}
+button.std{background:#222;color:#ddd;border:1px solid #555}button.tst{background:#262626;color:#fff;border:1px solid #AA00AA}
+#mini{position:fixed;top:0;left:0;right:0;display:none;justify-content:center;background:rgba(17,17,17,.94);padding:6px 0;z-index:9;border-bottom:1px solid #333}
+#mini.an{display:flex}#mini canvas{width:88px;height:100px;image-rendering:pixelated;border-radius:4px}
+.vs .chips b{font-size:13px;padding:6px 0}.vs input{width:100%;accent-color:#AA00AA;margin:8px 0 0}.vs small{display:block;text-align:center;color:#888;font-size:12px}
+.kopf small.ae{color:#FF55FF}.ax{margin:0 0 8px}.blk.fk{display:flex;align-items:center;gap:10px}.blk.fk .t{flex:1;margin:0}
 </style></head>
 <body>
 <h1>Neonweather</h1>
 <canvas id="v" width="200" height="228"></canvas>
 <p class="hinweis" id="hw">Preview with sample data, simplified font</p>
+<div id="vs" class="vs"></div>
+<div id="mini"><canvas id="vm" width="200" height="228"></canvas></div>
 <div id="inhalt"></div>
 <button class="std" id="std">Reset all colors</button>
+<button class="tst" id="tst">Save &amp; show night for 30 s</button>
 <button id="ok">Save</button>
 <script>
-var z = /*ZUSTAND*/null, L = /*LISTE*/null, D = /*LAGEN*/null, IN = /*INHALTE*/null, BL = /*BLOECKE*/null, SY = /*SYMBOLE*/null;
+var z = /*ZUSTAND*/null, L = /*LISTE*/null, D = /*LAGEN*/null, IN = /*INHALTE*/null, BL = /*BLOECKE*/null, SY = /*SYMBOLE*/null, SC = /*SCHRIFT*/null;
 var KF = { t: ["kurve", "k_kante", "k_rand", "k_punkt", "k_pkante"], b: ["b_kurve", "b_kante", "b_rand", "b_punkt", "b_pkante"] };   // line, edge, outline, dot, edge of the dot
 var sp = z.sprache === "de" ? "de" : "en";   // page language (0.27.0): English unless German was picked
 var teilen = null;   // own preset whose code is shown (0.27.0)
+// 0.30.0: presets and stock presets come as differences from the default (STD) and go back that way; the page works on complete ones
+var STD = z.std || { farben: {}, optionen: {} };
+function voll(t) {
+  var e = { farben: {}, optionen: {} };
+  ["farben", "optionen"].forEach(function (gr) { var k; for (k in STD[gr]) e[gr][k] = STD[gr][k]; for (k in (t && t[gr]) || {}) e[gr][k] = t[gr][k]; });
+  return e;
+}
+function kompakt(t) {                              // the main colour always stays in (like logik.kompakt)
+  var e = { farben: { haupt: t.farben.haupt }, optionen: {} };
+  ["farben", "optionen"].forEach(function (gr) { for (var k in t[gr]) if (t[gr][k] !== STD[gr][k]) e[gr][k] = t[gr][k]; });
+  return e;
+}
+function kompaktListe() { return z.presets.map(function (p) { return { name: p.name, tag: kompakt(p.tag), nacht: p.nacht }; }); }
+(z.presets || []).forEach(function (p) { p.tag = voll(p.tag); });
+// stock presets come without their night looks (0.30.0): "… Night" after every one with a night theme, like logik.vorlagen()
+z.vorlagen = (z.vorlagen || []).reduce(function (l, p) {
+  p.tag = voll(p.tag); l.push(p);
+  if (p.nacht && p.nacht.an) l.push({ name: p.name + " Night", tag: nachtBild(p.tag, p.nacht), nacht: { an: false, farben: {}, optionen: {} } });
+  return l;
+}, []);
+var glob = { zeitformat: z.global && (z.global.zeitformat === 1 || z.global.zeitformat === 2) ? z.global.zeitformat : 0 };   // the same day and night
+var vw = 0, vzeit = null;                          // preview only (0.30.0): sample weather, sample time in minutes (null = default)
 var seite = "tag", offen = null, sek = {}, wahl = null, meldung = "", P = [], S = ["00", "55", "AA", "FF"], NAME = {};
+// 0.30.0: the state lives in the URL fragment too — should the phone's web view reload the page (keyboard), nothing is lost
+try {
+  var hs = typeof location !== "undefined" && location.hash && location.hash.length > 1 ? JSON.parse(decodeURIComponent(location.hash.substring(1))) : null;
+  if (hs && hs.tag && hs.nacht && hs.presets) {
+    z.tag = hs.tag; z.nacht = hs.nacht; z.presets = hs.presets.map(function (p) { return { name: p.name, tag: voll(p.tag), nacht: p.nacht }; });
+    sp = hs.sp === "de" ? "de" : "en"; seite = hs.seite === "nacht" ? "nacht" : "tag"; if (hs.glob) glob = hs.glob;
+  }
+} catch (e) {}
+function merken() {
+  try {
+    if (typeof history !== "undefined" && history.replaceState)
+      history.replaceState(null, "", "#" + encodeURIComponent(JSON.stringify({ tag: z.tag, nacht: z.nacht, presets: kompaktListe(), sp: sp, seite: seite, glob: glob })));
+  } catch (e) {}
+}
 for (var r = 0; r < 4; r++) for (var g = 0; g < 4; g++) for (var b = 0; b < 4; b++) P.push(S[r] + S[g] + S[b]);
-L.forEach(function (e) { NAME[e[0]] = e[1]; });
+var ERB = {};                                  // colours that may be empty = inherit (0.28.0): 3D edge per block, symbol families;
+L.forEach(function (e) { NAME[e[0]] = e[1]; if (e[2] === "") ERB[e[0]] = true; });   // since 0.30.0 digit colours (main colour) and 3D per family
+var ZIF = {};                                  // digit colours that inherit the main colour (0.30.0)
+["ziffer", "z_auf", "z_auf2", "z_tag", "z_monat", "z_min", "z_max", "z_unter", "z_unter2"].forEach(function (k) { ZIF[k] = true; });
+// symbol families (0.28.0) with their 3D edge (0.30.0); index = sym_familie() in main.c
+var FAM = [["sf_pfeil", "sk_pfeil"], ["sf_schirm", "sk_schirm"], ["sf_warnung", "sk_warnung"], ["sf_wetter", "sk_wetter"], ["sf_mond", "sk_mond"],
+           ["sf_alt", "sk_alt"], ["sf_freude", "sk_freude"]];
 var DICKEN = ["1 px", "2 px", "3 px", "4 px"], SCHWELLEN = ["0.1", "0.2", "0.3", "0.5", "1.0"];
 var REGEN = [["Full height", "columns from the bottom; on the fixed scale 1 mm/h reaches the time bar (umbrella time)"],
              ["Bottom", "a strip below row 4; on the fixed scale half height = 1 mm/h"], ["Off", "no rain columns"]];
@@ -76,6 +132,7 @@ var DE = {
   "Copied — paste it wherever you like.": "Kopiert — jetzt einfügen, wo du willst.", "Select the code and copy it by hand.": "Code markieren und von Hand kopieren.",
   "That doesn’t look like a preset code.": "Das sieht nicht nach einem Preset-Code aus.", "20 presets is the limit — delete one first.": "Mehr als 20 Presets gehen nicht — erst eins löschen.",
   "Paper": "Papier", "Sundial": "Sonnenuhr", "Neon Night": "Neon Nacht", "Paper Night": "Papier Nacht", "Retro Night": "Retro Nacht",
+  "Minimal Night": "Minimal Nacht", "Dusk": "Abendrot", "Dusk Night": "Abendrot Nacht", "Signal Night": "Signal Nacht",
   "Rows & content": "Zeilen und Inhalte", "numbers, symbols, curves, bars": "Zahlen, Symbole, Kurven, Balken",
   "Every row except the time has two blocks: a number, a curve or symbols — two symbols per block. Smart symbols only show up when there’s a reason; the preview always shows them.":
     "Jede Zeile außer der Uhrzeit hat zwei Blöcke: Zahl, Kurve oder Symbole — bei Symbolen zwei je Block. Symbole „bei Anlass“ erscheinen nur, wenn es einen gibt; die Vorschau zeigt sie immer.",
@@ -125,11 +182,45 @@ var DE = {
   "Arrow down": "Pfeil runter", "Umbrella": "Schirm", "Snowflake": "Schneeflocke", "Lightning": "Blitz", "Windsock": "Windsack", "Cloud crossed out": "Wolke durchgestrichen",
   "Sun": "Sonne", "Cloud": "Wolke", "Sun and cloud": "Sonne mit Wolke", "Rain cloud": "Regenwolke", "Snow cloud": "Schneewolke", "Fog": "Nebel", "New moon": "Neumond",
   "Waxing crescent": "Mondsichel zunehmend", "First quarter": "Halbmond zunehmend", "Waxing gibbous": "Dreiviertelmond zunehmend", "Full moon": "Vollmond",
-  "Waning gibbous": "Dreiviertelmond abnehmend", "Last quarter": "Halbmond abnehmend", "Waning crescent": "Mondsichel abnehmend"
+  "Waning gibbous": "Dreiviertelmond abnehmend", "Last quarter": "Halbmond abnehmend", "Waning crescent": "Mondsichel abnehmend",
+  "Free text": "Freier Text", "Your text": "Dein Text", "3D": "3D", "3D edge time": "3D-Kante Uhrzeit",
+  "One character above each digit: 2 per block, 4 in the left block when the right one is empty. A–Z, 0–9, ÄÖÜ, - ! ? . , : ' + / = ° ♥ ( ) % _ — spaces move the text along.":
+    "Ein Zeichen über jeder Ziffer: 2 je Block, 4 im linken Block, wenn der rechte leer ist. A–Z, 0–9, ÄÖÜ, - ! ? . , : ' + / = ° ♥ ( ) % _ — Leerzeichen rücken den Text weiter.",
+  "Symbol colors": "Symbolfarben", "like 3D edge": "wie 3D-Kante", "block color": "Blockfarbe",
+  "Each symbol family can have its own color, wherever it shows up — the moon of “Weather now” at night too. Empty = the block’s color.":
+    "Jede Symbolfamilie kann eine eigene Farbe haben, wo immer sie erscheint — auch der Mond von „Wetter jetzt“ nachts. Leer = Farbe des Blocks.",
+  "Baro arrows": "Baro-Pfeile", "Lightning, windsock, snowflake": "Blitz, Windsack, Schneeflocke", "Sun, clouds, fog": "Sonne, Wolken, Nebel", "Moon": "Mond",
+  "Curve colors apply wherever the curve shows up.": "Kurvenfarben gelten überall, wo die Kurve erscheint.",
+  "Time axis": "Zeitachse", "4–20 h": "4–20 Uhr", "0–24 h": "0–24 Uhr", "time axis, position, scale, color": "Zeitachse, Lage, Skala, Farbe",
+  "columns, rain, pressure line, vertical time line and curves; 0–24 h shows the whole day, 16–08 h the night with midnight in the middle": "Säulen, Regen, Luftdrucklinie, senkrechte Zeitlinie und Kurven; 0–24 Uhr zeigt den ganzen Tag, 16–08 Uhr die Nacht mit Mitternacht in der Mitte",
+  "16–08 h": "16–08 Uhr",
+  // 0.30.0
+  "Save & show night for 30 s": "Speichern, 30 s Nacht zeigen", "Save & show day for 30 s": "Speichern, 30 s Tag zeigen",
+  "Digits & symbols": "Ziffern und Symbole", "main color, 3D edge, symbol colors": "Hauptfarbe, 3D-Kante, Symbolfarben", "Main color": "Hauptfarbe",
+  "Main color and 3D edge apply to every digit, letter and symbol. Blocks, the time and every symbol family can have their own — empty = inherit.":
+    "Hauptfarbe und 3D-Kante gelten für alle Ziffern, Buchstaben und Symbole. Blöcke, Uhrzeit und jede Symbolfamilie können eigene haben — leer = übernehmen.",
+  "Each symbol family can have its own color and 3D edge, wherever it shows up — the moon of “Weather now” at night too. Empty = the block’s.":
+    "Jede Symbolfamilie kann eigene Farbe und 3D-Kante haben, wo immer sie erscheint — auch der Mond von „Wetter jetzt“ nachts. Leer = wie der Block.",
+  "main color": "Hauptfarbe", "block 3D edge": "3D-Kante des Blocks", "Status: stale data, battery, phone": "Status: Daten veraltet, Akku, Handy",
+  "Heart, smiley, star …": "Herz, Smiley, Stern …",
+  "Time format": "Zeitformat", "Like watch": "Wie Uhr", "24 h": "24 h", "12 h": "12 h",
+  "day and night, the sunrise and sunset hours too": "Tag und Nacht, auch die Stunden von Sonnenauf- und -untergang",
+  "Numbers above 99 run into the right block when it’s empty, otherwise they stop at 99. Steps: thousands, exact with an empty right block.":
+    "Zahlen über 99 laufen in den rechten Block, wenn er leer ist, sonst bleiben sie bei 99. Schritte: in Tausend, mit leerem rechten Block genau.",
+  "Colors of the curves in use. The pressure curve shows the trend: the day’s range, at least 8 hPa tall — calm days stay flat.":
+    "Farben der benutzten Kurven. Die Luftdruckkurve zeigt die Tendenz: Tagesbereich, mindestens 8 hPa hoch — ruhige Tage bleiben flach.",
+  "Date & time": "Datum und Zeit", "Weather": "Wetter", "Watch": "Uhr", "Positive symbols": "Positive Symbole",
+  "Weekday": "Wochentag", "Battery %": "Akku %", "Steps": "Schritte", "Heart rate": "Puls", "Rain chance now": "Regenrisiko jetzt",
+  "Rain chance 12 h": "Regenrisiko 12 h", "UV index now": "UV-Index jetzt", "UV index max": "UV-Index max.", "Wind now": "Wind jetzt",
+  "Gusts now": "Böen jetzt", "Battery low": "Akku schwach", "Phone disconnected": "Handy getrennt", "Battery empty": "Akku leer",
+  "Heart": "Herz", "Smiley": "Smiley", "Star": "Stern", "Check mark": "Haken", "Flower": "Blume", "Music note": "Note",
+  "Four-leaf clover": "Kleeblatt", "Coffee": "Kaffee",
+  "Showers": "Schauer", "Dry": "Trocken", "Thunder": "Gewitter", "Frost": "Frost", "Preview at": "Vorschau um"
 };
 [1, 2, 4, 5].forEach(function (r) {
   ["left", "right"].forEach(function (s) {
     DE["Bar row " + r + " " + s] = "Balken Zeile " + r + " " + DE[s]; DE["Digits row " + r + " " + s] = "Ziffern Zeile " + r + " " + DE[s];
+    DE["3D edge row " + r + " " + s] = "3D-Kante Zeile " + r + " " + DE[s];
   });
 });
 function T(s) { return sp === "de" && DE.hasOwnProperty(s) ? DE[s] : s; }
@@ -180,22 +271,34 @@ function radios(k, liste, titel) {
   });
   return h;
 }
+// Inherited colour (0.28.0): empty; the 3D edge per block shows the common 3D edge, a symbol family the block colour (no swatch);
+// since 0.30.0 digit colours show the main colour, the 3D edge of a family "block 3D edge" (no swatch)
+function erbText(k) { return /^kante_/.test(k) ? "like 3D edge" : /^sk_/.test(k) ? "block 3D edge" : ZIF[k] ? "main color" : "block color"; }
+function farbHex(k) {
+  var c = eff("farben", k);
+  return c !== "" ? c : /^kante_/.test(k) ? eff("farben", "kante") : ZIF[k] ? eff("farben", "haupt") : null;
+}
+function feld(k) { var c = eff("farben", k), h = farbHex(k); return "<span class='k" + (c === "" ? " e" : "") + "' style='background:" + (h ? "#" + h : "transparent") + "'></span>"; }
 function palette(k) {
   if (offen !== k) return "";
   var c = eff("farben", k), h = "<div class='p'>";
+  if (ERB[k]) h += "<span class='f fa" + (c === "" ? " a" : "") + "' data-c=''>" + erbText(k) + "</span>";
   P.forEach(function (p) { h += "<span class='f" + (p === c ? " a" : "") + "' data-c='" + p + "' style='background:#" + p + "'></span>"; });
   return h + "</div>";
 }
 function farbe(k) {
   var c = eff("farben", k);
-  return "<div class='z" + blass("farben", k) + "' data-k='" + k + "'><span class='k' style='background:#" + c + "'></span>" + NAME[k] +
-         "<small>#" + c + "</small>" + marke("farben", k) + "</div>" + palette(k);
+  return "<div class='z" + blass("farben", k) + "' data-k='" + k + "'>" + feld(k) + NAME[k] +
+         "<small>" + (c === "" ? erbText(k) : "#" + c) + "</small>" + marke("farben", k) + "</div>" + palette(k);
 }
 // Block: content, bar on/off, digit and bar colour in one card; at night one ↺ for all four values
 // Contents (0.22.0), numbers as enum W_… in main.c (fixed symbols from 64 since 0.23.0): numbers and "whole block" use both cells, symbols one
-var W_FEST = 64, GRUPPEN = [["Numbers", [1, 2, 3, 4, 5, 6, 7, 8, 9]], ["Whole block", [10, 18, 12]], ["Smart symbols", [11, 13, 14, 15, 16, 17]],
-                            ["Fixed symbols", IN.map(function (n, j) { return j; }).slice(W_FEST)]];
-function zelle(w) { return w === 0 || w === 11 || (w >= 13 && w <= 17) || w >= W_FEST; }
+// Since 0.30.0 in groups by topic: date and time, weather, watch (battery, steps, heart rate), whole block, smart, positive, fixed symbols
+var W_FEST = 64, W_TEXT = 19, W_FREUDE = W_FEST + 26, ALLE = IN.map(function (n, j) { return j; });
+var GRUPPEN = [["Date & time", [1, 2, 20, 5, 6, 7, 8]], ["Weather", [3, 4, 9, 24, 25, 26, 27, 28, 29]], ["Watch", [21, 22, 23]],
+               ["Whole block", [10, 18, 12, 19]], ["Smart symbols", [11, 13, 14, 15, 16, 17, 30, 31]],
+               ["Positive symbols", ALLE.slice(W_FREUDE)], ["Fixed symbols", ALLE.slice(W_FEST, W_FREUDE)]];
+function zelle(w) { return w === 0 || w === 11 || (w >= 13 && w <= 17) || w === 30 || w === 31 || w >= W_FEST; }
 function auswahl(k, v, nurZelle) {
   var h = "<select data-in='" + k + "'><option value='0'" + (v === 0 ? " selected" : "") + ">" + IN[0] + "</option>";
   GRUPPEN.forEach(function (gr) {
@@ -206,35 +309,71 @@ function auswahl(k, v, nurZelle) {
   });
   return h + "</select>";
 }
+// Since 0.28.0 with a 3D edge per block (empty = the common one) and the free text. A curve block shows the curve's line and
+// edge instead (they apply wherever the curve shows up)
+function attr(s) { return esc(s).replace(/'/g, "&#39;"); }
 function block(i, titel) {
-  var b = BL[i], geaendert = eigen("optionen", b[0]) || eigen("optionen", b[1]) || eigen("farben", b[2]) || eigen("farben", b[3]) || eigen("optionen", b[5]);
+  var b = BL[i], w = eff("optionen", b[0]), kv = w === 10 ? KF.t : w === 18 ? KF.b : null;
+  var geaendert = eigen("optionen", b[0]) || eigen("optionen", b[1]) || eigen("farben", b[2]) || eigen("farben", b[3]) || eigen("optionen", b[5]) ||
+                  eigen("farben", b[6]) || eigen("optionen", b[7]);
+  var fk = kv ? kv[0] : b[2], kk = kv ? kv[1] : b[6];
   var h = "<div class='blk" + (seite === "nacht" && !geaendert ? " w" : "") + "'><div class='t'>" + titel +
           (seite === "nacht" ? (geaendert ? "<span class='x' data-reset='blk:" + i + "'>↺</span>" : " <small>as day</small>") : "") +
-          "</div><div class='zl'>" + auswahl(b[0], eff("optionen", b[0]), false);
+          "</div><div class='zl'>" + auswahl(b[0], w, false);
   h += "<span class='mini' data-sw='" + b[1] + "'><span class='s" + (eff("optionen", b[1]) ? " a" : "") + "'></span>Bar</span>" +
-       "<span class='mini' data-k='" + b[2] + "'><span class='k' style='background:#" + eff("farben", b[2]) + "'></span>Color</span>" +
-       (eff("optionen", b[1]) ? "<span class='mini' data-k='" + b[3] + "'><span class='k' style='background:#" + eff("farben", b[3]) + "'></span>Bar color</span>" : "") +
+       "<span class='mini' data-k='" + fk + "'>" + feld(fk) + (kv ? "Line" : "Color") + "</span>" +
+       "<span class='mini' data-k='" + kk + "'>" + feld(kk) + "3D</span>" +
+       (eff("optionen", b[1]) ? "<span class='mini' data-k='" + b[3] + "'>" + feld(b[3]) + "Bar color</span>" : "") +
        "</div>";
-  if (zelle(eff("optionen", b[0])))                 // symbol or empty: second symbol in the right cell (otherwise a single one is centred)
+  if (kv) h += "<p class='info' style='margin:6px 2px 0'>Curve colors apply wherever the curve shows up.</p>";
+  if (w === W_TEXT) h += "<input class='tx' data-tx='" + b[7] + "' maxlength='4' value='" + attr(eff("optionen", b[7])) + "' placeholder='Your text'>" +
+    "<p class='info' style='margin:6px 2px 0'>One character above each digit: 2 per block, 4 in the left block when the right one is empty. A–Z, 0–9, ÄÖÜ, - ! ? . , : ' + / = ° ♥ ( ) % _ — spaces move the text along.</p>";
+  if (zelle(w))                                     // symbol or empty: second symbol in the right cell (otherwise a single one is centred)
     h += "<div class='zl' style='margin-top:6px'><small style='color:#888;min-width:80px'>Right cell</small>" + auswahl(b[5], eff("optionen", b[5]), true) + "</div>";
-  return h + "</div>" + palette(b[2]) + palette(b[3]);
+  return h + "</div>" + palette(fk) + palette(kk) + palette(b[3]);
+}
+
+// Time format (0.30.0): one setting for day and night, kept on the phone like the language — no ↺
+function zeitformat() {
+  var h = "<div class='o' style='flex-wrap:wrap;cursor:default'><span>Time format<small>day and night, the sunrise and sunset hours too</small></span><span class='chips'>";
+  ["Like watch", "24 h", "12 h"].forEach(function (w, i) { h += "<b data-gl='zeitformat:" + i + "' class='" + (glob.zeitformat === i ? "a" : "") + "'>" + w + "</b>"; });
+  return h + "</span></div>";
+}
+// Symbol family (0.30.0): colour and 3D edge in one card, at night one ↺ for both
+function famKarte(i) {
+  var f = FAM[i], ge = eigen("farben", f[0]) || eigen("farben", f[1]);
+  return "<div class='blk fk" + (seite === "nacht" && !ge ? " w" : "") + "'><div class='t'>" + NAME[f[0]] +
+    (seite === "nacht" ? (ge ? "<span class='x' data-reset='fam:" + i + "'>↺</span>" : " <small>as day</small>") : "") + "</div>" +
+    "<span class='mini' data-k='" + f[0] + "'>" + feld(f[0]) + "Color</span><span class='mini' data-k='" + f[1] + "'>" + feld(f[1]) + "3D</span></div>" +
+    palette(f[0]) + palette(f[1]);
+}
+function kurveBenutzt(w) { return BL.some(function (b) { return eff("optionen", b[0]) === w; }); }   // 10 temperature, 18 pressure curve
+function achseZeile() {                            // time axis (0.28.0) below the tabs since 0.30.0: it applies to everything on the time axis
+  return "<div class='ax'>" + chips("achse", ["4–20 h", "0–24 h", "16–08 h"], "Time axis",
+    "columns, rain, pressure line, vertical time line and curves; 0–24 h shows the whole day, 16–08 h the night with midnight in the middle") + "</div>";
 }
 
 // Preset row (p = own, v = stock); after "Load" the choice what for appears below (since 0.21.0, on the page instead of confirm())
 // Share (0.27.0): an own preset as a text code to copy; Import takes such a code back in as a new preset
 function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
-function psCode(p) { return JSON.stringify({ name: p.name, tag: p.tag, nacht: p.nacht }); }
-function themaSaeubern(t, nurDa) {                   // imported values: wrong type or unknown content → current day (nurDa: keep only what is there, for the night)
+function psCode(p) { return JSON.stringify({ name: p.name, tag: kompakt(p.tag), nacht: p.nacht }); }   // compact since 0.30.0
+// Imported values: missing, wrong type or unknown content → default (since 0.30.0: codes are compact, missing = default;
+// until 0.29.0 the current day). nurDa: keep only what is there, for the night
+function themaSaeubern(t, nurDa) {
   var e = { farben: {}, optionen: {} };
-  for (var k in z.tag.farben) {
+  for (var k in STD.farben) {
     var c = t && t.farben ? t.farben[k] : undefined;
-    if (typeof c === "string" && /^(00|55|AA|FF){3}$/i.test(c)) e.farben[k] = c.toUpperCase(); else if (!nurDa) e.farben[k] = z.tag.farben[k];
+    if (typeof c === "string" && (/^(00|55|AA|FF){3}$/i.test(c) || (ERB[k] && c === ""))) e.farben[k] = c.toUpperCase(); else if (!nurDa) e.farben[k] = STD.farben[k];
   }
-  for (k in z.tag.optionen) {
-    var v = t && t.optionen ? t.optionen[k] : undefined, ok = typeof v === typeof z.tag.optionen[k];
+  for (k in STD.optionen) {
+    var v = t && t.optionen ? t.optionen[k] : undefined, ok;
+    if (k === "achse" && v === undefined && t && t.optionen && typeof t.optionen.achse24 === "boolean") v = t.optionen.achse24 ? 1 : 0;   // code from 0.28.0
+    if (k === "achse" && typeof v === "number" && !(v >= 0 && v <= 2 && v % 1 === 0)) v = undefined;
+    ok = typeof v === typeof STD.optionen[k];
     if (ok && /^inhalt_/.test(k)) ok = v % 1 === 0 && typeof IN[v] === "string";
     if (ok && /^zweit_/.test(k)) ok = v % 1 === 0 && typeof IN[v] === "string" && zelle(v);
-    if (ok) e.optionen[k] = v; else if (!nurDa) e.optionen[k] = z.tag.optionen[k];
+    if (ok && /^text_/.test(k)) v = v.substring(0, 4);
+    if (ok) e.optionen[k] = v; else if (!nurDa) e.optionen[k] = STD.optionen[k];
   }
   return e;
 }
@@ -268,19 +407,28 @@ var ABSCHNITTE = [
     h += "<div class='u'>Row 1 · top</div>" + schalter("zeile1", "Show row 1", "above the date, sunrise by default");
     if (eff("optionen", "zeile1")) h += block(0, "left") + block(1, "right");
     h += "<div class='u'>Row 2</div>" + block(2, "left") + block(3, "right") +
-      "<div class='u'>Row 3 · time</div>" + farbe("ziffer") + schalter("zeitbalken", "Bar", "full width") +
-      (eff("optionen", "zeitbalken") ? farbe("balken") : "") +
+      "<div class='u'>Row 3 · time</div>" + farbe("ziffer") + farbe("kante_zeit") + schalter("zeitbalken", "Bar", "full width") +
+      (eff("optionen", "zeitbalken") ? farbe("balken") : "") + zeitformat() +
       "<div class='u'>Row 4</div>" + block(4, "left") + block(5, "right") +
       "<div class='u'>Row 5 · bottom</div>" + schalter("zeile5", "Show row 5", "below row 4, sunset by default");
     if (eff("optionen", "zeile5")) h += block(6, "left") + block(7, "right");
-    return h + "<div class='u'>All digits and symbols</div>" + farbe("rand") + farbe("kante");
+    return h + "<p class='info'>Numbers above 99 run into the right block when it’s empty, otherwise they stop at 99. Steps: thousands, exact with an empty right block.</p>";
   }],
+  // 0.30.0: main colour, 3D edge, outline and the symbol families with colour and 3D edge (until 0.29.0 at the end of "Rows & content")
+  ["ziffern", "Digits & symbols", "main color, 3D edge, symbol colors", function () {
+    var h = "<p class='info'>Main color and 3D edge apply to every digit, letter and symbol. Blocks, the time and every symbol family can have their own — empty = inherit.</p>" +
+      farbe("haupt") + farbe("kante") + farbe("rand") +
+      "<div class='u'>Symbol colors</div><p class='info'>Each symbol family can have its own color and 3D edge, wherever it shows up — the moon of “Weather now” at night too. Empty = the block’s.</p>";
+    FAM.forEach(function (f, i) { h += famKarte(i); });
+    return h;
+  }],
+  // only when a block shows a curve (0.30.0), and only the curves in use
   ["kurven", "Curves", "temperature and pressure: all colors", function () {
-    return "<p class='info'>Pick “Temperature curve” or “Pressure curve” as block content under “Rows & content”. The pressure curve shows the trend: " +
-      "the day’s range, at least 8 hPa tall — calm days stay flat.</p>" +
-      "<div class='u'>Temperature curve</div>" + KF.t.map(farbe).join("") + "<div class='u'>Pressure curve</div>" + KF.b.map(farbe).join("");
-  }],
-  ["regen", "Rain", "position, scale, color", function () {
+    return "<p class='info'>Colors of the curves in use. The pressure curve shows the trend: the day’s range, at least 8 hPa tall — calm days stay flat.</p>" +
+      (kurveBenutzt(10) ? "<div class='u'>Temperature curve</div>" + KF.t.map(farbe).join("") : "") +
+      (kurveBenutzt(18) ? "<div class='u'>Pressure curve</div>" + KF.b.map(farbe).join("") : "");
+  }, function () { return kurveBenutzt(10) || kurveBenutzt(18); }],
+  ["regen", "Rain", "position, scale, color", function () {   // time axis below the tabs since 0.30.0
     var h = radios("regenlage", REGEN, "Position");
     if (eff("optionen", "regenlage") === 2) return h;      // rain off: the rest has no effect
     return h + "<div class='u'>Scale</div>" +
@@ -339,17 +487,49 @@ function zeigen() {
          (z.nacht.an ? "" : "<p class='info' style='color:#FF55FF'>Night mode is off: what you set here kicks in once it’s on.</p>") +
          "<p class='info'>The night borrows everything from the day. Changes here apply at night only; ↺ brings back the day value.</p>";
   }
+  h += achseZeile();
+  // Sections; a section can depend on others (Curves). At night the header counts the changed values (0.30.0)
   ABSCHNITTE.forEach(function (a) {
-    h += "<div class='sek'><div class='kopf' data-sek='" + a[0] + "'>" + a[1] + "<small>" + a[2] + "</small><b>" + (sek[a[0]] ? "▾" : "▸") + "</b></div>" +
-         (sek[a[0]] ? "<div class='inn'>" + a[3]() + "</div>" : "") + "</div>";
+    if (a[4] && !a[4]()) return;
+    var inn = a[3](), n = seite === "nacht" ? (inn.match(/data-reset=/g) || []).length : 0;
+    h += "<div class='sek'><div class='kopf' data-sek='" + a[0] + "'>" + a[1] + "<small>" + a[2] + "</small>" +
+         (n ? "<small class='ae'>" + n + (sp === "de" ? " geändert" : " changed") + "</small>" : "") + "<b>" + (sek[a[0]] ? "▾" : "▸") + "</b></div>" +
+         (sek[a[0]] ? "<div class='inn'>" + inn + "</div>" : "") + "</div>";
   });
   document.getElementById("inhalt").innerHTML = uebersetzen(h);
+  vsZeigen();
   document.getElementById("hw").textContent = T("Preview with sample data, simplified font");
   document.getElementById("ok").textContent = T("Save");
+  document.getElementById("tst").textContent = T(seite === "nacht" ? "Save & show day for 30 s" : "Save & show night for 30 s");
   if (document.documentElement) document.documentElement.lang = sp;
   knopf();
   vorschau();
+  merken();
 }
+// Preview controls (0.30.0, not saved): sample weather and time
+var VW = ["Showers", "Dry", "Thunder", "Frost"];
+function vorschauMinute() { return vzeit !== null ? vzeit : eff("optionen", "achse") === 2 ? 1353 : 633; }   // 10:33, night axis 22:33
+function zeitText(m) { return T("Preview at") + " " + Math.floor(m / 60) + ":" + ("0" + m % 60).slice(-2); }
+function vsZeigen() {
+  var m = vorschauMinute();
+  document.getElementById("vs").innerHTML = uebersetzen("<div class='chips'>" + VW.map(function (w, i) { return "<b data-vw='" + i + "' class='" + (vw === i ? "a" : "") + "'>" + w + "</b>"; }).join("") +
+    "</div><input type='range' id='vz' min='0' max='1425' step='15' value='" + m + "'>") + "<small id='vzt'>" + zeitText(m) + "</small>";
+}
+document.getElementById("vs").onclick = function (ev) {
+  var t = ev.target, w = t && t.getAttribute ? t.getAttribute("data-vw") : null;
+  if (w === null) return;
+  vw = parseInt(w, 10); vsZeigen(); vorschau();
+};
+document.getElementById("vs").oninput = function (ev) {
+  var t = ev.target;
+  if (!t || t.id !== "vz") return;
+  vzeit = parseInt(t.value, 10); document.getElementById("vzt").textContent = zeitText(vzeit); vorschau();
+};
+// small preview at the top while the big one is scrolled away (0.30.0)
+if (typeof window !== "undefined" && window.addEventListener) window.addEventListener("scroll", function () {
+  var v = document.getElementById("v"), r = v && v.getBoundingClientRect ? v.getBoundingClientRect() : null;
+  document.getElementById("mini").className = r && r.bottom < 0 ? "an" : "";
+});
 
 function kopie(o) { return JSON.parse(JSON.stringify(o)); }
 // Night as a complete look (day plus differences) and back as differences from a day
@@ -376,7 +556,7 @@ function laden(p, ziel) {
   n = abweichung(z.tag, p.tag); z.nacht.farben = n.farben; z.nacht.optionen = n.optionen; z.nacht.an = true;
 }
 var ZIEL = { tag: ["for day", "für den Tag"], nacht: ["for night", "für die Nacht"], beide: ["for day & night", "für Tag und Nacht"] };
-var A = ["data-sp", "data-reset", "data-c", "data-ps", "data-tab", "data-sek", "data-nm", "data-sw", "data-rd", "data-ch", "data-k"];
+var A = ["data-sp", "data-reset", "data-c", "data-ps", "data-tab", "data-sek", "data-nm", "data-gl", "data-sw", "data-rd", "data-ch", "data-k"];
 document.getElementById("inhalt").onclick = function (ev) {
   var t = ev.target, a = null, w = null;
   if (t && (t.tagName === "SELECT" || t.tagName === "INPUT")) return;
@@ -386,7 +566,8 @@ document.getElementById("inhalt").onclick = function (ev) {
   meldung = ""; frage = false;
   if (a === "data-sp") sp = w === "de" ? "de" : "en";
   else if (a === "data-reset") {
-    if (kv[0] === "blk") { var bb = BL[parseInt(kv[1], 10)]; delete z.nacht.optionen[bb[0]]; delete z.nacht.optionen[bb[1]]; delete z.nacht.farben[bb[2]]; delete z.nacht.farben[bb[3]]; delete z.nacht.optionen[bb[5]]; }
+    if (kv[0] === "blk") { var bb = BL[parseInt(kv[1], 10)]; delete z.nacht.optionen[bb[0]]; delete z.nacht.optionen[bb[1]]; delete z.nacht.farben[bb[2]]; delete z.nacht.farben[bb[3]]; delete z.nacht.optionen[bb[5]]; delete z.nacht.farben[bb[6]]; delete z.nacht.optionen[bb[7]]; }
+    else if (kv[0] === "fam") { var fm = FAM[parseInt(kv[1], 10)]; delete z.nacht.farben[fm[0]]; delete z.nacht.farben[fm[1]]; }
     else delete z.nacht[kv[0]][kv[1]];
   }
   else if (a === "data-c") { setz("farben", offen, w); offen = null; }
@@ -427,6 +608,7 @@ document.getElementById("inhalt").onclick = function (ev) {
   else if (a === "data-tab") { seite = w; offen = null; }
   else if (a === "data-sek") sek[w] = !sek[w];
   else if (a === "data-nm") z.nacht.an = !z.nacht.an;
+  else if (a === "data-gl") glob[kv[0]] = parseInt(kv[1], 10);
   else if (a === "data-sw") setz("optionen", w, !eff("optionen", w));
   else if (a === "data-rd") setz("optionen", kv[0], parseInt(kv[1], 10));
   else if (a === "data-ch") setz("optionen", kv[0], typeof z.tag.optionen[kv[0]] === "boolean" ? kv[1] === "1" : parseInt(kv[1], 10));
@@ -438,12 +620,14 @@ function zeigenBehalten() {                        // after Copy: show the messa
   zeigen();
   ta = document.getElementById("pscode"); if (ta && wert && ta.select) ta.select();
 }
-document.getElementById("inhalt").onchange = function (ev) {      // block content (select), slider released
-  var t = ev.target, k = t && t.getAttribute ? t.getAttribute("data-in") || t.getAttribute("data-rg") : null;
+document.getElementById("inhalt").onchange = function (ev) {      // block content (select), slider released, text done (0.28.0)
+  var t = ev.target, k = t && t.getAttribute ? t.getAttribute("data-in") || t.getAttribute("data-rg") : null, tx = t && t.getAttribute ? t.getAttribute("data-tx") : null;
+  if (tx) { setz("optionen", tx, String(t.value || "").substring(0, 4)); zeigen(); return; }
   if (k) { setz("optionen", k, parseInt(t.value, 10)); zeigen(); }
 };
-document.getElementById("inhalt").oninput = function (ev) {       // slider while dragging
-  var t = ev.target, k = t && t.getAttribute ? t.getAttribute("data-rg") : null;
+document.getElementById("inhalt").oninput = function (ev) {       // slider while dragging; text while typing: preview only, the field keeps its focus
+  var t = ev.target, k = t && t.getAttribute ? t.getAttribute("data-rg") : null, tx = t && t.getAttribute ? t.getAttribute("data-tx") : null;
+  if (tx) { setz("optionen", tx, String(t.value || "").substring(0, 4)); vorschau(); return; }
   if (!k) return;
   setz("optionen", k, parseInt(t.value, 10));
   document.getElementById("rw_" + k).textContent = t.value + " px";
@@ -459,17 +643,62 @@ document.getElementById("std").onclick = function () {
   else L.forEach(function (e) { z.tag.farben[e[0]] = e[2]; });
   offen = null; zeigen();
 };
-document.getElementById("ok").onclick = function () {
-  document.location = "pebblejs://close#" + encodeURIComponent(JSON.stringify({ tag: z.tag, nacht: z.nacht, presets: z.presets, sprache: sp }));
-};
+// Save; "Save & show …" (0.30.0, a button instead of the switch of 0.29.0): the watch shows the other theme for 30 s
+function speichern(test) {
+  document.location = "pebblejs://close#" + encodeURIComponent(JSON.stringify({ tag: z.tag, nacht: z.nacht, presets: kompaktListe(), sprache: sp, global: glob, test: test }));
+}
+document.getElementById("ok").onclick = function () { speichern(false); };
+document.getElementById("tst").onclick = function () { speichern(true); };
+
+// Free text (0.28.0) → character codes, the same rule as textCodes() in logik.js: only characters the watch has (SC.zeichen)
+var TEXT_SONDER = { "Ä": 96, "Ö": 97, "Ü": 98, "°": 99, "♥": 100, "❤": 100 };
+var TEXT_AKZENT = { "À": "A", "Á": "A", "Â": "A", "Ã": "A", "Å": "A", "Ç": "C", "È": "E", "É": "E", "Ê": "E", "Ë": "E", "Ì": "I", "Í": "I",
+                    "Î": "I", "Ï": "I", "Ñ": "N", "Ò": "O", "Ó": "O", "Ô": "O", "Õ": "O", "Ø": "O", "Ù": "U", "Ú": "U", "Û": "U", "Ý": "Y" };
+function textCodes(s) {
+  var aus = [], t = String(s || "").toUpperCase();
+  for (var i = 0; i < t.length && aus.length < 4; i++) {
+    var ch = TEXT_AKZENT[t[i]] || t[i];
+    if (!SC || SC.zeichen.indexOf(ch) < 0) continue;
+    aus.push(TEXT_SONDER[ch] || ch.charCodeAt(0));
+  }
+  return aus;
+}
+// Symbol family of a symbol number (0.28.0), like sym_familie() in main.c: index into FAM (colour, 3D edge)
+function familie(n) { return n <= 4 ? 0 : n === 5 ? 1 : n <= 8 ? 2 : n >= 26 ? 6 : n === 9 || n >= 24 ? 5 : n <= 15 ? 3 : 4; }
 
 // ---------- Preview of the view shown: same dimensions as main.c, digits in a system font ----------
+// Sample weather (0.30.0): showers (the sample until 0.29.0), dry, thunder, frost. Per kind: rain 04–20 h (R), the night hours
+// before (Rn, 00–03 h) and after (Rs, 21–23 h), pressure likewise, temperature 04–20 h plus 00–03 and 21–24 h, sample numbers, smart symbols
+var BW = [
+  { R: [0, 0, .2, .5, 1, .6, .1, 0, 0, 0, 0, .3, .8, 1.5, .4, 0, 0], Rn: [.3, .6, .2, 0], Rs: [0, .5, 1.1],
+    P: [1003, 1003.5, 1004, 1005, 1006.5, 1008, 1009, 1010, 1011, 1012, 1012.5, 1013, 1013.5, 1014, 1015, 1015.5, 1016], Pn: [1001, 1001.5, 1002, 1002.5], Ps: [1016.5, 1017, 1017],
+    T: [4, 3, 3, 4, 5, 7, 8, 10, 9, 8, 10, 11, 12, 11, 10, 9, 8], Tn: [6, 5, 5, 4], Ts: [7, 7, 6, 6],
+    w: { 3: "07", 4: "16", 9: "11", 24: "40", 25: "70", 26: "02", 27: "03", 28: "12", 29: "35" }, s: { 11: 1, 12: 1, 14: 7, 15: 12 } },
+  { R: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], Rn: [0, 0, 0, 0], Rs: [0, 0, 0],
+    P: [1024, 1024, 1024.5, 1024.5, 1025, 1025, 1025.5, 1025.5, 1025, 1025, 1024.5, 1024.5, 1024.5, 1025, 1025, 1025.5, 1025.5], Pn: [1023, 1023, 1023.5, 1023.5], Ps: [1026, 1026, 1026],
+    T: [10, 9, 9, 10, 12, 14, 16, 18, 19, 20, 21, 22, 22, 21, 19, 17, 15], Tn: [12, 11, 11, 10], Ts: [14, 13, 12, 12],
+    w: { 3: "09", 4: "22", 9: "19", 24: "05", 25: "10", 26: "04", 27: "05", 28: "08", 29: "20" }, s: { 11: 2, 12: 2, 14: 7, 15: 10 } },
+  { R: [0, 0, 0, 0, 0, 0, 0, 0, 0, .2, 2.5, 6, 4, 1.2, .3, 0, 0], Rn: [0, 0, 0, 0], Rs: [0, 0, 0],
+    P: [1012, 1012, 1011.5, 1011, 1010.5, 1010, 1009, 1008, 1006.5, 1005, 1003.5, 1002, 1001, 1001, 1001.5, 1002, 1002.5], Pn: [1013, 1012.5, 1012.5, 1012], Ps: [1003, 1003.5, 1004],
+    T: [17, 16, 16, 17, 19, 21, 23, 25, 26, 27, 25, 20, 19, 19, 18, 18, 17], Tn: [19, 18, 18, 17], Ts: [17, 16, 16, 15],
+    w: { 3: "16", 4: "27", 9: "25", 24: "80", 25: "90", 26: "06", 27: "07", 28: "18", 29: "70" }, s: { 11: 4, 12: 4, 14: 7, 15: 7 } },
+  { R: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], Rn: [0, 0, 0, 0], Rs: [0, 0, 0],
+    P: [1020, 1020.5, 1021, 1021.5, 1022, 1022.5, 1023, 1023.5, 1024, 1024.5, 1025, 1025.5, 1026, 1026.5, 1027, 1027.5, 1028], Pn: [1018, 1018.5, 1019, 1019.5], Ps: [1028.5, 1029, 1029],
+    T: [-4, -5, -6, -6, -5, -4, -2, 0, 1, 2, 2, 1, 0, -1, -2, -3, -3], Tn: [-2, -3, -3, -4], Ts: [-4, -4, -5, -5],
+    w: { 3: "-6", 4: "02", 9: "-1", 24: "10", 25: "20", 26: "01", 27: "01", 28: "06", 29: "15" }, s: { 11: 0, 12: 0, 14: 6, 15: 11 } }
+];
+// symbol masks once from Base64 (0.30.0, until 0.29.0 hex)
+var SYB = ((SY && SY.teile) || []).map(function (s) { return s.map(function (t) { var b = atob(t[1]), a = []; for (var i = 0; i < b.length; i++) a.push(b.charCodeAt(i)); return [t[0], a]; }); });
 function vorschau() {
-  var x = document.getElementById("v").getContext("2d"), i, h;
-  var R = [0, 0, .2, .5, 1, .6, .1, 0, 0, 0, 0, .3, .8, 1.5, .4, 0, 0];
-  var PD = [1003, 1003.5, 1004, 1005, 1006.5, 1008, 1009, 1010, 1011, 1012, 1012.5, 1013, 1013.5, 1014, 1015, 1015.5, 1016];
+  var x = document.getElementById("v").getContext("2d"), i, h, bw = BW[vw] || BW[0];
+  var R = bw.R, PD = bw.P, R24 = bw.Rn.concat(R, bw.Rs), PD24 = bw.Pn.concat(PD, bw.Ps);   // 00–23 h (0.28.0)
+  // night axis 16–08 h (0.29.0): this evening, then the next morning (the small hours again, pressure continued)
+  var RN = R24.slice(16).concat(R24.slice(0, 9)), PDN = PD24.slice(16).concat(PD24.slice(0, 9).map(function (v) { return v + PD24[23] - PD24[0] + .5; }));
   function f(k) { return "#" + eff("farben", k); }
+  function fe(k, ersatz) { var c = eff("farben", k); return c ? "#" + c : ersatz; }   // inherited colour → fallback
   function o(k) { return eff("optionen", k); }
+  var A24 = o("achse") === 1, AN8 = o("achse") === 2, AH = A24 ? 0 : AN8 ? 16 : 4, AN = A24 ? 24 : 17, AP = A24 ? 8 : 12, AB = A24 ? 4 : 6, AX = A24 ? 6 : 0;   // like ACHSEN in main.c
+  var JM = vorschauMinute(), JR = JM - AH * 60 + (AN8 && JM < 720 ? 1440 : 0);   // sample time; minutes since the axis start (night axis: the night since yesterday before noon)
   var datum = o("balken_2l") || o("balken_2r"), temp = o("balken_4l") || o("balken_4r"), unten = o("regenlage") === 1;
   var oben0 = o("zeile1") && (o("balken_1l") || o("balken_1r")) ? 47 : 2;
   var Z = [[oben0, datum ? 42 : 88], [2, datum ? 42 : 45], [temp ? 185 : 182, 226], [temp ? 185 : 139, 226]][o("drucklage")];   // like druck_y()
@@ -487,18 +716,20 @@ function vorschau() {
   }
   if (o("sonne")) for (var y = 0; y < 228; y++) himmelZeile(y);
   var SW = [1, 2, 3, 5, 10][o("schwelle")], RMAX = 0;
-  R.forEach(function (r) { if (r * 10 >= SW && r * 10 > RMAX) RMAX = r * 10; });
+  var RA = AN8 ? RN : R24.slice(AH), PA = AN8 ? PDN : PD24.slice(AH);   // rain and pressure of the hours on the axis
+  for (i = 0; i < AN; i++) { var rv = RA[i]; if (rv * 10 >= SW && rv * 10 > RMAX) RMAX = rv * 10; }
   var dy = [], dd = o("dicke_d") + 1, RH = [];
-  for (i = 0; i < 17; i++) {
-    if (o("saeulen")) { x.fillStyle = f("saeule"); x.fillRect(12 * i, 0, 6, 228); }
+  for (i = 0; i < AN; i++) {
+    var r = RA[i], sx = AX + AP * i;
+    if (o("saeulen")) { x.fillStyle = f("saeule"); x.fillRect(sx, 0, AB, 228); }
     var hm = unten ? 45 : 228;                        // like regen_px(): relative (threshold) or fixed scale
-    if (o("regenlage") === 2 || R[i] <= 0) h = 0;
-    else if (o("regen_rel")) h = R[i] * 10 < SW || !RMAX ? 0 : o("regenvoll") ? hm : Math.max(2, Math.round(hm * R[i] * 10 / RMAX));
+    if (o("regenlage") === 2 || r <= 0) h = 0;
+    else if (o("regen_rel")) h = r * 10 < SW || !RMAX ? 0 : o("regenvoll") ? hm : Math.max(2, Math.round(hm * r * 10 / RMAX));
     else if (o("regenvoll")) h = hm;
-    else if (unten) h = Math.min(45, Math.round(45 * Math.sqrt(R[i] / 4)));
-    else h = Math.min(228, Math.round(91 * Math.sqrt(R[i])));
-    x.fillStyle = f("regen"); x.fillRect(12 * i, 228 - h, 6, h); RH[i] = h;
-    dy.push(Math.round(Z[1] - (PD[i] - 985) / 55 * (Z[1] - Z[0])));
+    else if (unten) h = Math.min(45, Math.round(45 * Math.sqrt(r / 4)));
+    else h = Math.min(228, Math.round(91 * Math.sqrt(r)));
+    x.fillStyle = f("regen"); x.fillRect(sx, 228 - h, AB, h); RH[i] = h;
+    dy.push(Math.round(Z[1] - (PA[i] - 985) / 55 * (Z[1] - Z[0])));
   }
   function tagZeile(y) {                              // rain behind day and twilight (0.25.1): only the night stays behind
     var m = Math.floor((y * 1440 + 720) / 228);
@@ -506,16 +737,16 @@ function vorschau() {
     return m >= SO[1] && m < SO[2] ? o("sonne_tag") : o("sonne_daemmerung") && m >= SO[0] && m < SO[3];
   }
   for (i = 0; i < 228; i++) if (tagZeile(i)) himmelZeile(i);
-  if (o("luftdruck") && !o("druckvoll")) for (i = 0; i < 17; i++) { x.fillStyle = f("druck"); x.fillRect(12 * i, dy[i], 6, dd); }
+  if (o("luftdruck") && !o("druckvoll")) for (i = 0; i < AN; i++) { x.fillStyle = f("druck"); x.fillRect(AX + AP * i, dy[i], AB, dd); }
   if (o("luftdruck") && o("druckvoll")) {
     x.strokeStyle = f("druck"); x.lineWidth = dd; x.beginPath(); x.moveTo(0, dy[0] + dd / 2);
-    for (i = 0; i < 17; i++) x.lineTo(12 * i + 3, dy[i] + dd / 2);
-    x.lineTo(200, dy[16] + dd / 2); x.stroke();
+    for (i = 0; i < AN; i++) x.lineTo(AX + AP * i + (AB >> 1), dy[i] + dd / 2);
+    x.lineTo(200, dy[AN - 1] + dd / 2); x.stroke();
   }
-  var Y0 = [0, 45, 137, 183], Y1 = [45, 91, 183, 228], TY = [0, 46, 138, 184], AN = [o("zeile1"), true, true, o("zeile5")];
+  var Y0 = [0, 45, 137, 183], Y1 = [45, 91, 183, 228], TY = [0, 46, 138, 184], ZAN = [o("zeile1"), true, true, o("zeile5")];
   if (o("zeitbalken")) { x.fillStyle = f("balken"); x.fillRect(0, 91, 200, 46); }
   for (var rr = 0; rr < 4; rr++) for (var sei = 0; sei < 2; sei++)
-    if (AN[rr] && o(BL[2 * rr + sei][1])) { x.fillStyle = f(BL[2 * rr + sei][3]); x.fillRect(100 * sei, Y0[rr], 100, Y1[rr] - Y0[rr]); }
+    if (ZAN[rr] && o(BL[2 * rr + sei][1])) { x.fillStyle = f(BL[2 * rr + sei][3]); x.fillRect(100 * sei, Y0[rr], 100, Y1[rr] - Y0[rr]); }
   // time lines above the bars, right behind the digits (like main.c since 0.16.0)
   // like main.c since 0.19.0: collect the pieces, frame around all of them first, then the faces (cross = one outline)
   if (o("sonne") && o("sonne_streifen")) [[SO[1], "s_auf"], [SO[2], "s_unter"]].forEach(function (st) {   // sun stripes (0.26.0)
@@ -523,52 +754,74 @@ function vorschau() {
     x.fillStyle = f(st[1]);
     if (o("streifen_voll")) x.fillRect(0, ys, 200, o("staerke_s")); else for (var q = 0; q < 200; q += 8) x.fillRect(q, ys, 4, o("staerke_s"));
   });
-  var LR = [], nh = 0, l0 = 76 - ((o("staerke_v") - 1) >> 1), yl = 100 - ((o("staerke_h") - 1) >> 1);   // sample time 10:33 (row 100 since 0.27.0)
+  var xj = Math.floor(AX + JR * AP / 60), senk = o("zeitmarke") && (A24 || (JR >= 0 && xj <= 198));   // like main.c: outside the axis no vertical line
+  var LR = [], nh = 0, l0 = xj - ((o("staerke_v") - 1) >> 1), yl = Math.floor(JM * 228 / 1440) - ((o("staerke_h") - 1) >> 1);
   if (o("tageslinie")) { if (o("voll_h")) LR.push([0, yl, 200, o("staerke_h")]); else for (i = 0; i < 200; i += 8) LR.push([i, yl, 4, o("staerke_h")]); }
   nh = LR.length;
-  if (o("zeitmarke")) { if (o("voll_v")) LR.push([l0, 0, o("staerke_v"), 228]); else for (i = 0; i < 228; i += 8) LR.push([l0, i, o("staerke_v"), 4]); }
+  if (senk) { if (o("voll_v")) LR.push([l0, 0, o("staerke_v"), 228]); else for (i = 0; i < 228; i += 8) LR.push([l0, i, o("staerke_v"), 4]); }
   if (o("rahmen_z")) { x.fillStyle = f("rahmen_z"); LR.forEach(function (r) { x.fillRect(r[0] - 1, r[1] - 1, r[2] + 2, r[3] + 2); }); }
   LR.forEach(function (r, k) { x.fillStyle = f(k < nh ? "tlinie" : "jetzt"); x.fillRect(r[0], r[1], r[2], r[3]); });
-  if (o("zeitmarke") && o("regen_vorn")) for (i = 0; i < 17; i++) {   // rain cuts through (simplified: bars are not left out)
-    var rb = o("rahmen_z") ? 1 : 0, a0 = Math.max(l0 - rb, 12 * i), a1 = Math.min(l0 + o("staerke_v") + rb, 12 * i + 6);
+  if (senk && o("regen_vorn")) for (i = 0; i < AN; i++) {   // rain cuts through (simplified: bars are not left out)
+    var rb = o("rahmen_z") ? 1 : 0, a0 = Math.max(l0 - rb, AX + AP * i), a1 = Math.min(l0 + o("staerke_v") + rb, AX + AP * i + AB);
     if (a1 > a0 && RH[i]) for (var yy = 228 - RH[i]; yy < 228; yy++) if (!tagZeile(yy)) { x.fillStyle = f("regen"); x.fillRect(a0, yy, a1 - a0, 1); }
   }
-  var WERT = ["  ", "21", "10", "07", "16", "08", "05", "18", "15", "11"];   // sample: 21 Oct, 7–16 °C, sun 08:05–18:15, now 11 °C
+  // sample numbers: 21 Oct (a Wednesday), sun 08:05–18:15, battery 80 %, 8,432 steps, heart rate 64, weather from the sample kind
+  var H12 = glob.zeitformat === 2;
+  var WERT = { 1: "21", 2: "10", 5: "08", 6: "05", 7: H12 ? "06" : "18", 8: "15", 20: sp === "de" ? "MI" : "WE", 21: "80", 22: "08", 23: "64" };
+  for (var wk in bw.w) WERT[wk] = bw.w[wk];
   x.font = "bold 44px monospace"; x.textBaseline = "top";
-  function zf(txt, n, ty, farbk) {
+  function zf(txt, n, ty, face, kante) {               // face and edge as colour strings (0.28.0: edge per block)
     var sp = [0, 54, 107, 161];
-    for (var k = 4; k >= 1; k--) { x.fillStyle = f("kante"); x.fillText(txt, sp[n] + k, ty + k); }
+    for (var k = 4; k >= 1; k--) { x.fillStyle = kante; x.fillText(txt, sp[n] + k, ty + k); }
     x.lineWidth = 3; x.strokeStyle = f("rand"); x.strokeText(txt, sp[n], ty);
-    x.fillStyle = f(farbk); x.fillText(txt, sp[n], ty);
+    x.fillStyle = face; x.fillText(txt, sp[n], ty);
+  }
+  // free text like buchstabe() in main.c: one character per digit cell, rectangles on the grid of the digit segments;
+  // outline, edge 4 px, face (simplified: no flatter edge in the holes). Digits in the system font like all others
+  var RX = [0, 8, 13, 21, 26, 34], RY = [[0, 8, 13, 21, 26, 34], [0, 6, 10, 16, 20, 26, 34]];
+  function zeichenV(code, n, y0, face, kante) {
+    if ((code >= 48 && code <= 57) || code === 45) { zf(String.fromCharCode(code), n, y0 - 3, face, kante); return; }
+    var gl = SC && SC.glyphen[code], re = [], k;
+    if (!gl) return;
+    for (var zz = 0; zz < 5 + gl[1]; zz++) for (var ss = 0; ss < 5; ss++)
+      if (Math.floor(gl[0] / Math.pow(2, zz * 5 + ss)) % 2) re.push([[0, 54, 107, 161][n] + RX[ss], y0 + RY[gl[1]][zz], RX[ss + 1] - RX[ss], RY[gl[1]][zz + 1] - RY[gl[1]][zz]]);
+    x.fillStyle = f("rand");
+    for (k = 0; k <= 4; k++) re.forEach(function (r) { x.fillRect(r[0] + k - 1, r[1] + k - 1, r[2] + 2, r[3] + 2); });
+    x.fillStyle = kante;
+    for (k = 4; k >= 1; k--) re.forEach(function (r) { x.fillRect(r[0] + k, r[1] + k, r[2], r[3]); });
+    x.fillStyle = face; re.forEach(function (r) { x.fillRect(r[0], r[1], r[2], r[3]); });
   }
   // symbols and curve (since 0.22.0): masks from symbole.js, edge like the digits, no outline; curve with sample temperatures
-  function maske(hex, x0, y0, farbe) {               // 34 rows of 5 bytes, bit 7 = left column
+  function maske(by, x0, y0, farbe) {                 // 34 rows of 5 bytes, bit 7 = left column
     x.fillStyle = farbe;
     for (var r = 0; r < 34; r++) {
       var s = -1;
       for (var q = 0; q <= 34; q++) {
-        var an = q < 34 && (parseInt(hex.substr(r * 10 + (q >> 3) * 2, 2), 16) >> (7 - (q & 7)) & 1);
+        var an = q < 34 && (by[r * 5 + (q >> 3)] >> (7 - (q & 7)) & 1);
         if (an && s < 0) s = q;
         if (!an && s >= 0) { x.fillRect(x0 + s, y0 + r, q - s, 1); s = -1; }
       }
     }
   }
-  function sym(n, x0, y0, fk) {                      // n = symbol number as on the watch
-    ((SY && SY.teile[n]) || []).forEach(function (t) {   // t = [dark, mask]; dark: flat in the edge colour (moon disc)
-      if (t[0]) { maske(t[1], x0, y0, f("kante")); return; }
-      for (var k = 4; k >= 1; k--) maske(t[1], x0 + k, y0 + k, f("kante"));
-      maske(t[1], x0, y0, f(fk));
+  function sym(n, x0, y0, face, kante) {             // n = symbol number as on the watch; face and edge: the family's when set (0.28.0, 0.30.0)
+    face = fe(FAM[familie(n)][0], face); kante = fe(FAM[familie(n)][1], kante);
+    (SYB[n] || []).forEach(function (t) {             // t = [dark, mask]; dark: flat in the edge colour (moon disc, battery, phone)
+      if (t[0]) { maske(t[1], x0, y0, kante); return; }
+      for (var k = 4; k >= 1; k--) maske(t[1], x0 + k, y0 + k, kante);
+      maske(t[1], x0, y0, face);
     });
   }
-  // smart symbols as samples: baro slightly up, umbrella, lightning, sun with cloud, crescent, crossed-out cloud
-  var BEISPIEL = { 11: 1, 12: 1, 13: 5, 14: 7, 15: 12, 16: 17, 17: 9 };
+  // smart symbols as samples: baro, umbrella, warning, weather now (moon or cloud at night), crescent, stale data, battery, phone
+  var nachtV = JM < SO[1] || JM >= SO[2], BEISPIEL = { 11: bw.s[11], 12: bw.s[12], 13: 5, 14: bw.s[14], 15: bw.s[15], 16: 17, 17: 9, 30: 24, 31: 25 };
+  if (nachtV && (BEISPIEL[15] === 10 || BEISPIEL[15] === 12)) BEISPIEL[15] = BEISPIEL[15] === 10 ? 17 : 11;
   function symVon(w) { return w >= W_FEST ? w - W_FEST : BEISPIEL[w]; }
   // curves as on the watch: outline, edge, line; temperature low to high, pressure at least 8 hPa tall (sample data)
-  function kurveV(x0, y0, art) {
-    var W = art === "b" ? PD : [4, 3, 3, 4, 5, 7, 8, 10, 9, 8, 10, 11, 12, 11, 10, 9, 8], F = KF[art], PK = [], k;
+  function kurveV(x0, y0, art) {                     // 17 points 04–20 h, with the 24-hour axis 25 points 00–24 h (0.28.0)
+    var TK = bw.T, T24 = bw.Tn.concat(TK, bw.Ts), TN = TK.slice(12).concat(bw.Ts, bw.Tn.slice(0, 3), TK.slice(0, 5));
+    var W = art === "b" ? (A24 ? PD24.concat([PD24[23]]) : AN8 ? PDN : PD) : (A24 ? T24 : AN8 ? TN : TK), F = KF[art], PK = [], k;
     var lo = Math.min.apply(null, W), hi = Math.max.apply(null, W);
     if (art === "b" && hi - lo < 8) { lo = (lo + hi) / 2 - 4; hi = lo + 8; }
-    W.forEach(function (t, q) { PK.push([x0 + 3 + q * 82 / 16, y0 + 3 + 28 * (hi - t) / (hi - lo || 1)]); });
+    W.forEach(function (t, q) { PK.push([x0 + 3 + q * 82 / (W.length - 1), y0 + 3 + 28 * (hi - t) / (hi - lo || 1)]); });
     function strich(dk, farbe, b) {
       x.strokeStyle = farbe; x.lineWidth = b; x.lineJoin = "round"; x.lineCap = "round"; x.beginPath();
       PK.forEach(function (p, q) { if (q) x.lineTo(p[0] + dk, p[1] + dk); else x.moveTo(p[0] + dk, p[1] + dk); });
@@ -577,28 +830,41 @@ function vorschau() {
     for (k = 0; k <= 4; k++) strich(k, f(F[2]), 8);
     for (k = 4; k >= 1; k--) strich(k, f(F[1]), 6);
     strich(0, f(F[0]), 6);
-    var px = PK[6][0] + .55 * (PK[7][0] - PK[6][0]), py = PK[6][1] + .55 * (PK[7][1] - PK[6][1]);   // sample time 10:33
+    if (JR < 0 || JR >= (W.length - 1) * 60) return;   // dot only on the axis (like main.c)
+    var ip = Math.floor(JR / 60), fr = (JR % 60) / 60, px = PK[ip][0] + fr * (PK[ip + 1][0] - PK[ip][0]), py = PK[ip][1] + fr * (PK[ip + 1][1] - PK[ip][1]);
     for (k = 0; k <= 4; k++) { x.fillStyle = f(F[2]); x.fillRect(px - 5 + k, py - 5 + k, 10, 10); }
     for (k = 4; k >= 1; k--) { x.fillStyle = f(F[4]); x.fillRect(px - 4 + k, py - 4 + k, 8, 8); }
     x.fillStyle = f(F[3]); x.fillRect(px - 4, py - 4, 8, 8);
   }
-  function bild(w, w2, sei, y0, fk) {
+  function bild(w, w2, sei, y0, face, kante) {
     var x0 = [0, 107][sei];
     if (w === 10 || w === 18) kurveV(x0, y0, w === 10 ? "t" : "b");
-    else if (w === 12) { sym(symVon(w), x0, y0, fk); zf("2", 2 * sei + 1, y0 - 3, fk); }
-    else if (!w2) { if (w) sym(symVon(w), x0 + 27, y0, fk); }   // a single one: centred in the block
-    else { if (w) sym(symVon(w), x0, y0, fk); sym(symVon(w2), x0 + 54, y0, fk); }
+    else if (w === 12) {                              // digit in the arrow colour and with its edge
+      var s = symVon(w); sym(s, x0, y0, face, kante); zf("2", 2 * sei + 1, y0 - 3, fe(FAM[familie(s)][0], face), fe(FAM[familie(s)][1], kante));
+    }
+    else if (!w2) { if (w) sym(symVon(w), x0 + 27, y0, face, kante); }   // a single one: centred in the block
+    else { if (w) sym(symVon(w), x0, y0, face, kante); sym(symVon(w2), x0 + 54, y0, face, kante); }
   }
-  "1033".split("").forEach(function (c, n) { zf(c, n, 92, "ziffer"); });
+  var hh = Math.floor(JM / 60), uz = (H12 ? ((hh + 11) % 12 + 1 < 10 ? " " : "") + ((hh + 11) % 12 + 1) : ("0" + hh).slice(-2)) + ("0" + JM % 60).slice(-2);
+  var haupt = f("haupt"), kante0 = f("kante");       // main colour (0.30.0): time and blocks inherit it
+  uz.split("").forEach(function (c, n) { if (c !== " ") zf(c, n, 92, fe("ziffer", haupt), fe("kante_zeit", kante0)); });
   for (rr = 0; rr < 4; rr++) {
-    if (!AN[rr]) continue;
+    if (!ZAN[rr]) continue;
     for (sei = 0; sei < 2; sei++) {
-      var bk = BL[2 * rr + sei], w = o(bk[0]);
-      if (w === 10 || w === 12 || w === 18 || zelle(w)) { bild(w, o(bk[5]), sei, TY[rr] + 3, bk[2]); continue; }
-      var t2 = WERT[w];
-      zf(t2[0], 2 * sei, TY[rr], bk[2]); zf(t2[1], 2 * sei + 1, TY[rr], bk[2]);
+      var bk = BL[2 * rr + sei], w = o(bk[0]), kante = fe(bk[6], kante0), face = fe(bk[2], haupt), nb = BL[2 * rr + 1];
+      var frei = sei === 0 && o(nb[0]) === 0 && o(nb[5]) === 0;
+      if (w === W_TEXT) {                             // free text (0.28.0): one character per cell, the left block runs into an empty right one
+        var tc = textCodes(o(bk[7])), nz = frei ? 4 : 2;
+        for (var ci = 0; ci < nz && ci < tc.length; ci++) zeichenV(tc[ci], 2 * sei + ci, TY[rr] + 3, face, kante);
+        continue;
+      }
+      if (w === 10 || w === 12 || w === 18 || zelle(w)) { bild(w, o(bk[5]), sei, TY[rr] + 3, face, kante); continue; }
+      var t2 = w === 22 && frei ? "8432" : WERT[w] || "--";   // steps exact when the right block is empty
+      for (ci = 0; ci < t2.length; ci++) zeichenV(t2.charCodeAt(ci), 2 * sei + ci, TY[rr] + 3, face, kante);
     }
   }
+  var vm = document.getElementById("vm"), mc = vm && vm.getContext ? vm.getContext("2d") : null;   // small preview at the top (0.30.0)
+  if (mc && mc.drawImage) { mc.drawImage(document.getElementById("v"), 0, 0); }
 }
 zeigen();
 </script>

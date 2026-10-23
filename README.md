@@ -5,7 +5,7 @@ One glance tells you whether to grab an umbrella — and when.
 
 Made by **Seb & Claude** (Anthropic): ideas, design and testing by Seb, code and docs by Claude.
 
-> **Status: beta, version 0.27.0.** Tested in the emery emulator, with a pixel-exact preview on the Mac and Node tests —
+> **Status: beta, version 0.30.0.** Tested in the emery emulator, with a pixel-exact preview on the Mac and Node tests —
 > not yet proven in daily use. Version numbers start with 0 until it has.
 
 <p>
@@ -63,7 +63,7 @@ a gale with pressure in free fall · April showers · a drizzly winter evening.*
 
 ## Stock presets
 
-Nine looks built in. Load one for the day, for the night, or both.
+Eight looks built in, six of them with a night look of their own. Load one for the day, for the night, or both.
 
 <p>
   <img src="docs/images/preset-neon.png" width="200" alt="Neon">
@@ -77,8 +77,15 @@ Nine looks built in. Load one for the day, for the night, or both.
   <img src="docs/images/preset-minimal.png" width="200" alt="Minimal">
 </p>
 <p>
+  <img src="docs/images/preset-minimal-night.png" width="200" alt="Minimal Night">
   <img src="docs/images/preset-retro.png" width="200" alt="Retro">
   <img src="docs/images/preset-retro-night.png" width="200" alt="Retro Night">
+</p>
+<p>
+  <img src="docs/images/preset-dusk.png" width="200" alt="Dusk">
+  <img src="docs/images/preset-dusk-night.png" width="200" alt="Dusk Night">
+  <img src="docs/images/preset-signal.png" width="200" alt="Signal">
+  <img src="docs/images/preset-signal-night.png" width="200" alt="Signal Night">
 </p>
 
 | Preset | The idea |
@@ -87,19 +94,31 @@ Nine looks built in. Load one for the day, for the night, or both.
 | **Paper** | Black on white like a printout, blue low, red high. Turns itself inside out at night |
 | **Sundial** | The sky as background — night, a twilight gradient, day — with the time lines as a framed cross |
 | **Terminal** | Green phosphor, all the way. Rows rearranged: high and low on top, sunrise and sunset below |
-| **Minimal** | As little as it gets: no columns, no pressure, rain as a thin strip at the bottom |
+| **Minimal** | As little as it gets: no columns, no pressure, rain as a thin strip at the bottom. At night everything steps down to grey |
 | **Retro** | Seb's own: red and blue digits on a sunny orange sky, a fat 10 px cross for *now*, rain in bright full columns. At night it calms down — white digits, no sky, no rain |
 
-*Neon Night, Paper Night and Retro Night are the night looks on their own, to put on any day you like.*
+| **Dusk** | The sky as background with stripes at sunrise and sunset; the time is just a white line across it. At night only the dark sky, with midnight in the middle |
+| **Signal** | Grey on black and one loud accent: an orange time bar and line. At night it turns into red light |
+
+*Neon Night, Paper Night, Minimal Night, Retro Night, Dusk Night and Signal Night are the night looks on their own, to put on any day you like.*
 
 ## Make it yours
 
 ### Five rows, eight blocks
 
-The time sits in the middle. Rows 2 and 4 are always there, rows 1 and 5 are optional. Each row has two blocks,
-and each block shows what you pick: day, month, low, high, sunrise or sunset (hour, minute), temperature now,
-a temperature curve, a pressure curve, the pressure trend — or two symbols. Bars and colors belong to the position,
-so swapping contents never messes up the look.
+The time sits in the middle — 24-hour, 12-hour or whatever the watch is set to. Rows 2 and 4 are always there,
+rows 1 and 5 are optional. Each row has two blocks, and each block shows what you pick:
+
+| From | Contents |
+| --- | --- |
+| the calendar | day, month, weekday (two letters), sunrise and sunset (hour, minute) |
+| the weather | low, high, temperature now, rain chance now and for the next 12 hours, UV index now and today's max, wind, gusts |
+| your wrist | battery, steps, heart rate |
+| a whole block | temperature curve, pressure curve, pressure trend with hPa, your own text |
+| symbols | two per block, smart or fixed |
+
+Bars and colors belong to the position, so swapping contents never messes up the look. Numbers above 99 run into the
+right block when it's empty (battery `100`, steps `8432`); otherwise they stop at 99, and steps count in thousands.
 
 <p>
   <img src="docs/images/feature-rows.png" width="200" alt="Rows 1 and 5">
@@ -109,6 +128,16 @@ so swapping contents never messes up the look.
 
 *Sunrise and sunset in rows 1 and 5 · temperature now, the day's temperature curve, pressure curve and a falling
 arrow with −5 hPa · thunder warning, umbrella, clouds right now, half moon, pressure falling by 3 hPa.*
+
+<p>
+  <img src="docs/images/feature-numbers.png" width="200" alt="Weather as numbers">
+  <img src="docs/images/feature-watch.png" width="200" alt="From the watch">
+  <img src="docs/images/feature-text.png" width="200" alt="Free text">
+</p>
+
+*Rain chance now and in the next 12 hours, UV now and max, wind and gusts in km/h, low and high · weekday and day,
+battery and heart rate, the 12-hour clock, steps across a whole row · your own text: one letter above every digit,
+four per row, built from the same blocks as the digits.*
 
 ### Smart symbols
 
@@ -122,16 +151,29 @@ They only turn up when there's a reason — and leave the cell empty when there 
 | Moon phase | always; eight phases, worked out on the watch |
 | Pressure trend | always; flat, slanted or steep, from the last 3 hours (optionally with the hPa) |
 | Stale data | the last update is more than 3 hours old |
+| Battery low | 20 % or less and not charging |
+| Phone disconnected | the watch has lost the phone |
 
-Or pick any of the 24 symbols to stay put:
+Or pick any of the 34 symbols to stay put — including eight happy ones:
 
 <p>
   <img src="docs/images/symbols-1.png" width="200" alt="Symbols 1">
   <img src="docs/images/symbols-2.png" width="200" alt="Symbols 2">
+  <img src="docs/images/feature-positive.png" width="200" alt="Happy symbols">
   <img src="docs/images/feature-stale.png" width="200" alt="Stale data">
 </p>
 
-*All 24 symbols, four per row · no fresh data for a while: the crossed-out cloud.*
+*Weather, moon and status symbols, four per row · heart, smiley, star, check mark, flower, music note, four-leaf clover,
+coffee · no fresh data for a while: the crossed-out cloud.*
+
+### One main color
+
+<img src="docs/images/feature-colors.png" width="200" align="right" alt="Main color">
+
+Every digit, letter and symbol takes the main color and the 3D edge — until you give a block, the time or a symbol
+family its own color or edge. Here: orange digits with a red edge, blue edges in row 1, a white time.
+
+<br clear="right">
 
 ### Rain
 
@@ -144,6 +186,17 @@ Or pick any of the 24 symbols to stay put:
 
 *Fixed scale (1 mm/h reaches the time bar) · daily max = full height · a slim strip at the bottom · full columns,
 whatever the amount. A threshold keeps a few drops from filling a column.*
+
+### Time axis
+
+<p>
+  <img src="docs/images/weather-april.png" width="200" alt="04–20 h">
+  <img src="docs/images/axis-24.png" width="200" alt="00–24 h">
+  <img src="docs/images/axis-night.png" width="200" alt="16–08 h">
+</p>
+
+*04:00 to 20:00, the default · the whole day, 00:00 to 24:00 · the night, 16:00 to 08:00 with midnight in the middle —
+handy for the night look. Columns, rain, pressure, the time line and the curves all follow.*
 
 ### Pressure, time lines, sun
 
@@ -163,11 +216,14 @@ sunrise digits in row 1 and the sunset digits in row 5 sit.
 ### Night mode
 
 From sunset to sunrise a night theme takes over. It starts as a copy of the day and only keeps what you change —
-dim the digits, swap the colors, show the moon instead of the date.
+dim the digits, swap the colors, show the moon instead of the date. **Save & show night for 30 s** puts it on the
+watch right away, so you can judge it in daylight (and the day at night).
 
 ## Settings
 
-Pebble app → Neonweather → settings. A live preview on top, then English or German, day and night, eight sections.
+Pebble app → Neonweather → settings. A live preview on top — with sample weather and a slider for the time, and a small
+copy that follows you while you scroll — then English or German, day and night, the time axis and eight sections.
+At night every section tells you how many things you changed.
 
 <p>
   <img src="docs/images/settings-top.png" width="260" alt="Settings">
@@ -175,6 +231,7 @@ Pebble app → Neonweather → settings. A live preview on top, then English or 
   <img src="docs/images/settings-sun.png" width="260" alt="Sun position">
 </p>
 <p>
+  <img src="docs/images/settings-digits.png" width="260" alt="Digits and symbols">
   <img src="docs/images/settings-presets.png" width="260" alt="Presets">
   <img src="docs/images/settings-german.png" width="260" alt="German">
 </p>
@@ -188,16 +245,19 @@ done. Up to 20 presets of your own, each with its day and night.
 
 1. Download `neonweather.pbw` from the [releases](../../releases)
 2. Open it on your phone with the Pebble app — it installs on the watch
-3. Allow location when asked: the weather is for where you are
+3. Allow location when asked: the weather is for where you are. Steps and heart rate need the health permission
 
 Pebble Time 2 (emery) only.
 
 ## Under the hood
 
-- Weather from [Open-Meteo](https://open-meteo.com), no account, no key: hourly rain, pressure, temperature, weather code
-  and gusts, plus the day's low, high, sunrise and sunset. Twilight (sun at −6°) is worked out on the phone
+- Weather from [Open-Meteo](https://open-meteo.com), no account, no key: hourly rain, pressure, temperature, weather code,
+  gusts, rain chance, UV index and wind, plus the day's low, high, sunrise and sunset. Twilight (sun at −6°) is worked out on the phone
 - The watch asks at most once an hour. No network: again in 15 minutes. No phone: not at all — reconnecting asks right away
-- Today and tomorrow go to the watch in one 184-byte packet and stay there, so the night after midnight still has its weather
+- Today and tomorrow (and yesterday evening, for the night axis) go to the watch in two packets of 236 and 144 bytes and
+  stay there, so the night after midnight still has its weather
+- Battery, steps and heart rate come from the watch itself; heart rate is the last reading, nothing extra is measured
+- The settings page travels as a Base64 data URL, presets as differences from the default
 - No text on the watch, so no language either. The settings page speaks English and German
 
 ## Building
@@ -210,6 +270,7 @@ tools/bauen.sh                      # build outside the source folder → dist/n
 tools/bauen.sh emu                  # build + emery emulator
 node tools/test/logik_test.js       # weather packet, sun and twilight, colors, presets
 node tools/test/seite_test.js       # settings page: sections, night, presets, sharing, German
+node tools/test/text_vergleich.js   # free text: the preview places the same letters as the watch
 tools/vorschau/rendern.sh out.png   # render main.c on the Mac, no SDK needed
 python3 tools/screenshots.py docs/images   # every picture in this README
 ```

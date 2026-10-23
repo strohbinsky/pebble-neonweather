@@ -11,6 +11,7 @@ ZIEL="$HOME/.local/share/neonweather-build"
 mkdir -p "$ZIEL"
 if [ "${QUELLE:h:t}" = "dateien" ]; then AUSGABE="${QUELLE}../neonweather.pbw"; else AUSGABE="${QUELLE}dist/neonweather.pbw"; fi
 python3 "${QUELLE}tools/symbole_erzeugen.py"
+python3 "${QUELLE}tools/schrift_erzeugen.py"
 python3 "${QUELLE}tools/seite_erzeugen.py"
 rsync -a --delete --exclude build --exclude tools --exclude dist --exclude .git "$QUELLE" "$ZIEL/"
 cd "$ZIEL"

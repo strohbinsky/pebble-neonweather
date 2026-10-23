@@ -1,7 +1,7 @@
 {
   "name": "neonweather",
   "author": "Seb & Claude",
-  "version": "0.27.0",
+  "version": "0.30.0",
   "keywords": ["pebble-app"],
   "private": true,
   "dependencies": {},
@@ -12,8 +12,8 @@
     "enableMultiJS": true,
     "targetPlatforms": ["emery"],
     "watchapp": { "watchface": true },
-    "messageKeys": ["BEREIT", "ANFRAGE", "WETTER", "TAG", "STAND", "FEHLER", "FARBEN", "OPTIONEN", "FARBEN_N", "OPTIONEN_N", "NACHTMODUS", "BLOECKE", "BLOECKE_N", "LINIEN", "LINIEN_N", "ZELLEN", "ZELLEN_N", "SCHALTER", "SCHALTER_N"],
+    "messageKeys": ["BEREIT", "ANFRAGE", "WETTER", "TAG", "STAND", "FEHLER", "FARBEN", "OPTIONEN", "FARBEN_N", "OPTIONEN_N", "NACHTMODUS", "BLOECKE", "BLOECKE_N", "LINIEN", "LINIEN_N", "ZELLEN", "ZELLEN_N", "SCHALTER", "SCHALTER_N", "TEXTE", "TEXTE_N", "TEST", "WETTER2", "GLOBAL"],
     "resources": { "media": [] },
-    "capabilities": ["location", "configurable"]
+    "capabilities": ["location", "health", "configurable"]
   }
 }

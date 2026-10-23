@@ -2,7 +2,7 @@
 Run: python3 tools/screenshots.py <folder>        (needs cc, node; settings page shots also need Brave or Chrome)
 Every picture is 400 × 456 (the 200 × 228 display at 2×). Settings go through logik.anUhr() and empfangen() in main.c,
 exactly like on the watch."""
-import json, os, struct, subprocess, sys, zlib
+import json, math, os, struct, subprocess, sys, zlib
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -54,7 +54,20 @@ def packet(w):
     dawn, rise, sset, dusk = (hm(t) for t in w["sun"])
     for m in (rise, sset, dawn, dusk): day += [m & 255, m >> 8]
     ext = [t & 255 for t in w["temp"]] + [k | min(30, round(g / 5)) << 3 for k, g in zip(w["kind"], w["gust"])]
-    return bytes(day * 2 + ext * 2)        # today and tomorrow alike
+    # night hours 00–03 and 21–23 (0.28.0): no rain, pressure continued from the first and last value; evening before (0.29.0)
+    r, pr = w["rain"], w["pressure"]
+    nacht = [0] * 7 + [round(v * 2 - 1900) for v in [pr[0]] * 4 + [pr[-1]] * 3]
+    vor = r[12:] + [0] * 3 + [round(v * 2 - 1900) for v in pr[12:] + [pr[-1]] * 3] + [t & 255 for t in w["temp"][16:]]
+    vor = [max(0, min(254, round(v * 10))) for v in vor[:8]] + vor[8:]
+    return bytes(day * 2 + ext * 2 + nacht * 2 + vor)   # today and tomorrow alike, 236 bytes
+
+def packet2(w):                            # second packet (0.30.0): rain chance, UV, wind — made up from the sample weather
+    rain = [0] * 4 + w["rain"] + [0] * 3
+    chance = [min(95, 25 + round(x * 35)) if x > 0 else 5 for x in rain]   # hour h to h+1, like the rain
+    peak = {1: 1, 4: 4, 7: 8, 10: 2, 11: 1, 12: 1}.get(w["day"][1], 3)
+    dawn, rise, sset, dusk = (hm(t) for t in w["sun"])
+    uv = [max(0, round(peak * math.sin(math.pi * (h * 60 - rise) / (sset - rise)))) if rise <= h * 60 <= sset else 0 for h in range(24)]
+    return bytes((chance + uv + [round(g * 0.55) for g in w["gust"]]) * 2)
 
 # ---------- Settings: a stock preset or the defaults, plus changes, through logik.anUhr() ----------
 JS = """var l=require('./src/pkjs/logik'),a=JSON.parse(process.argv[1]),v=l.vorlagen(),p=null,k;
@@ -77,15 +90,16 @@ def png(raw, out, s=2, w=200, h=228):
     out.write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w * s, h * s, 8, 2, 0, 0, 0)) +
                     chunk(b"IDAT", zlib.compress(rows, 9)) + chunk(b"IEND", b""))
 
-def shot(name, weather, time, preset=None, o=None, f=None, ohne_nacht=False, alter=600):
+def shot(name, weather, time, preset=None, o=None, f=None, ohne_nacht=False, alter=600, env_mehr=None):
     if NUR and not any(name.startswith(n) for n in NUR): return
     w = WEATHER[weather]
-    Path("/tmp/nw-shot.bin").write_bytes(packet(w))
+    Path("/tmp/nw-shot.bin").write_bytes(packet(w)); Path("/tmp/nw-shot2.bin").write_bytes(packet2(w))
     uhr = settings(preset, o, f, ohne_nacht)
     Path("/tmp/nw-shot.uhr").write_text("".join(f"{k} {','.join(map(str, v)) if isinstance(v, list) else v}\n" for k, v in uhr.items()))
     y, mo, d = w["day"]
     t = int(datetime(y, mo, d, *(int(x) for x in time.split(":")), tzinfo=timezone.utc).timestamp())
-    env = dict(ENV0, TZ="UTC", WETTER="/tmp/nw-shot.bin", TAG="%04d%02d%02d" % w["day"], UHR="/tmp/nw-shot.uhr", ALTER=str(alter))
+    env = dict(ENV0, TZ="UTC", WETTER="/tmp/nw-shot.bin", WETTER2="/tmp/nw-shot2.bin", TAG="%04d%02d%02d" % w["day"], UHR="/tmp/nw-shot.uhr",
+               ALTER=str(alter), AKKU="80", SCHRITTE="8432", PULS="64", **(env_mehr or {}))   # watch values: sample numbers
     subprocess.run(["/tmp/neonweather-shots", str(t), "/tmp/nw-shot.raw"], env=env, check=True)
     png(Path("/tmp/nw-shot.raw").read_bytes(), OUT / f"{name}.png")
     print(name)
@@ -100,6 +114,10 @@ shot("preset-terminal", "april", "12:05", "Terminal")
 shot("preset-minimal", "april", "12:05", "Minimal")
 shot("preset-retro", "april", "12:05", "Retro")
 shot("preset-retro-night", "april", "21:40", "Retro")
+shot("preset-minimal-night", "april", "21:40", "Minimal")       # 0.30.0: Minimal with a night look, Signal and Dusk
+for _p in ("Signal", "Dusk"):
+    shot(f"preset-{_p.lower()}", "april", "12:05", _p)
+    shot(f"preset-{_p.lower()}-night", "april", "21:40", _p)
 # Retro in other weather, for the top of the README (made by Seb, stock preset since 0.27.0)
 for wx, time in (("autumn", "10:33"), ("thunder", "15:12"), ("frost", "12:30")):
     shot(f"retro-{wx}", wx, time, "Retro")
@@ -131,17 +149,39 @@ shot("sun-position", "autumn", "10:33", "Sundial", o={"sonne_streifen": True, "s
 shot("sun-stripes", "autumn", "10:33", o={"sonne": True, "sonne_tag": False, "sonne_daemmerung": False, "sonne_nacht": False,
                                           "sonne_streifen": True, "staerke_s": 3, "zeile1": True, "zeile5": True})
 # All 24 fixed symbols on two screens: four per row, rows 1, 2, 4, 5
-def symbole(start):
+def symbole(start, ende=26):            # 26 weather and status symbols; the positive ones (26–33, 0.30.0) on a picture of their own
     o = {"zeile1": True, "zeile5": True}
     for i, b in enumerate(("1l", "1r", "2l", "2r", "4l", "4r", "5l", "5r")):
         s1, s2 = start + 2 * i, start + 2 * i + 1
-        o["inhalt_" + b] = 64 + s1 if s1 < 24 else 0
-        o["zweit_" + b] = 64 + s2 if s2 < 24 else 0
+        o["inhalt_" + b] = 64 + s1 if s1 < ende else 0
+        o["zweit_" + b] = 64 + s2 if s2 < ende else 0
     return o
 shot("symbols-1", "frost", "12:00", "Neon", o=symbole(0), ohne_nacht=True)
 shot("symbols-2", "frost", "12:00", "Neon", o=symbole(16), ohne_nacht=True)
 # No data for a while: the stale-data cloud
 shot("feature-stale", "night", "19:40", o={"zeile1": True, "inhalt_1l": 17, "inhalt_1r": 0}, alter=4 * 3600)
+
+# ---------- 0.28.0–0.30.0 ----------
+# positive symbols in rows 1 and 5, each block in its own colour
+shot("feature-positive", "april", "12:05", o={"zeile1": True, "zeile5": True, "inhalt_1l": 90, "zweit_1l": 91, "inhalt_1r": 92, "zweit_1r": 93,
+                                             "inhalt_5l": 94, "zweit_5l": 95, "inhalt_5r": 96, "zweit_5r": 97},
+     f={"z_auf": "FF55AA", "z_auf2": "FFFF55", "z_unter": "55FFAA", "z_unter2": "FFAA00"})
+# weather as numbers: rain chance now and in the next 12 h, UV now and max, wind and gusts
+shot("feature-numbers", "thunder", "15:20", o={"zeile1": True, "zeile5": True, "inhalt_1l": 24, "inhalt_1r": 25, "inhalt_2l": 26, "inhalt_2r": 27,
+                                             "inhalt_4l": 28, "inhalt_4r": 29, "inhalt_5l": 3, "inhalt_5r": 4},
+     f={"z_auf": "55AAFF", "z_auf2": "55AAFF", "z_tag": "FFFF55", "z_monat": "FFFF55", "z_min": "AAFFAA", "z_max": "AAFFAA"})
+# from the watch: weekday, battery, heart rate, steps over the whole row — and the 12-hour clock
+shot("feature-watch", "autumn", "15:12", o={"zeile1": True, "zeile5": True, "inhalt_1l": 20, "inhalt_1r": 1, "inhalt_2l": 21, "inhalt_2r": 23,
+                                           "inhalt_5l": 22, "inhalt_5r": 0}, f={"z_unter": "55FF55", "z_auf": "FFAA00"}, env_mehr={"H12": "1"})
+# free text: one letter above every digit, four per row when the right block is empty
+shot("feature-text", "autumn", "10:33", o={"zeile1": True, "zeile5": True, "inhalt_1l": 19, "text_1l": "GOOD", "inhalt_1r": 0,
+                                          "inhalt_5l": 19, "text_5l": "DAY!", "inhalt_5r": 0}, f={"z_auf": "FFFF55", "z_unter": "FFFF55"})
+# time axis: the whole day 00–24 h, and the night 16–08 h with midnight in the middle
+shot("axis-24", "night", "22:10", o={"achse": 1, "regen_rel": True})
+shot("axis-night", "night", "23:40", o={"achse": 2, "regen_rel": True})
+# one main colour for every digit, a 3D edge per block
+shot("feature-colors", "april", "12:05", o={"zeile1": True, "inhalt_1l": 20, "inhalt_1r": 1},
+     f={"haupt": "FFAA55", "kante": "AA0000", "kante_1l": "0055FF", "kante_1r": "0055FF", "ziffer": "FFFFFF", "kante_zeit": "550055"})
 
 # ---------- Settings page (Brave or Chrome headless; BROWSER=<path> to choose) ----------
 BROWSER = os.environ.get("BROWSER") or next((b for b in ("/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
@@ -149,7 +189,7 @@ BROWSER = os.environ.get("BROWSER") or next((b for b in ("/Applications/Brave Br
 SEITE_JS = """var speicher=JSON.parse(process.argv[1]),url=null,zeigen=null;
 global.localStorage={getItem:function(k){return k in speicher?speicher[k]:null;},setItem:function(){},removeItem:function(){}};
 global.Pebble={addEventListener:function(n,f){if(n==='showConfiguration')zeigen=f;},openURL:function(u){url=u;},sendAppMessage:function(){}};
-global.navigator={};require('./src/pkjs/index.js');zeigen();process.stdout.write(decodeURIComponent(url.replace('data:text/html;charset=utf-8,','')));"""
+global.navigator={};require('./src/pkjs/index.js');zeigen();process.stdout.write(Buffer.from(url.split(',')[1],'base64').toString('utf8'));"""   # Base64 since 0.30.0
 BEISPIEL = {"presets": json.dumps([{"name": "Five rows", "tag": {"farben": {}, "optionen": {"zeile1": True, "zeile5": True}}, "nacht": {"an": False, "farben": {}, "optionen": {}}}])}
 def seite(name, skript, hoehe, speicher=BEISPIEL):
     if NUR and not any(name.startswith(n) for n in NUR): return
@@ -165,8 +205,9 @@ def seite(name, skript, hoehe, speicher=BEISPIEL):
 def offen(sek, mehr=""):           # open one section and hide the others, so preview and section fit into one picture
     return (f"sek.{sek}=true;{mehr}zeigen();[].forEach.call(document.querySelectorAll('.sek'),function(e)"
             f"{{if(!e.querySelector(\"[data-sek='{sek}']\"))e.style.display='none';}});")
-seite("settings-top", "", 860)
+seite("settings-top", "", 1080)
 seite("settings-rows", offen("zahlen"), 1500)
 seite("settings-presets", offen("presets", "teilen=0;"), 1250)
 seite("settings-sun", offen("sonne", "z.tag.optionen.sonne=true;z.tag.optionen.sonne_streifen=true;"), 1600)
 seite("settings-german", "sp='de';" + offen("regen"), 1150)
+seite("settings-digits", offen("ziffern"), 1500)                 # 0.30.0: main colour, 3D edge, symbol families

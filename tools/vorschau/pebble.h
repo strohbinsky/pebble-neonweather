@@ -21,7 +21,8 @@ enum { MESSAGE_KEY_BEREIT = 1, MESSAGE_KEY_ANFRAGE, MESSAGE_KEY_WETTER, MESSAGE_
        MESSAGE_KEY_FEHLER, MESSAGE_KEY_FARBEN, MESSAGE_KEY_OPTIONEN, MESSAGE_KEY_FARBEN_N, MESSAGE_KEY_OPTIONEN_N,
        MESSAGE_KEY_NACHTMODUS, MESSAGE_KEY_BLOECKE, MESSAGE_KEY_BLOECKE_N, MESSAGE_KEY_LINIEN,
        MESSAGE_KEY_LINIEN_N, MESSAGE_KEY_ZELLEN, MESSAGE_KEY_ZELLEN_N,
-       MESSAGE_KEY_SCHALTER, MESSAGE_KEY_SCHALTER_N };
+       MESSAGE_KEY_SCHALTER, MESSAGE_KEY_SCHALTER_N, MESSAGE_KEY_TEXTE, MESSAGE_KEY_TEXTE_N, MESSAGE_KEY_TEST,
+       MESSAGE_KEY_WETTER2, MESSAGE_KEY_GLOBAL };   // 0.30.0
 #define GRect(x, y, w, h) ((GRect){{(x), (y)}, {(w), (h)}})
 #define GColorFromHEX(v) ((GColor){((v) >> 16) & 255, ((v) >> 8) & 255, (v) & 255})
 #define GColorBlack ((GColor){0, 0, 0})
@@ -67,9 +68,30 @@ static inline void window_destroy(Window *w) {}
 static inline void tick_timer_service_subscribe(int u, void (*h)(struct tm *, TimeUnits)) {}
 static inline void tick_timer_service_unsubscribe(void) {}
 typedef struct { void (*pebble_app_connection_handler)(bool); } ConnectionHandlers;
-static inline bool connection_service_peek_pebble_app_connection(void) { return true; }
+static inline bool connection_service_peek_pebble_app_connection(void) { return getenv("OHNE_HANDY") == NULL; }
 static inline void connection_service_subscribe(ConnectionHandlers h) {}
 static inline void connection_service_unsubscribe(void) {}
 static inline void app_event_loop(void) {}
+typedef struct AppTimer AppTimer;   // 0.29.0: test of the other theme
+static inline AppTimer *app_timer_register(uint32_t ms, void (*f)(void *), void *d) { return NULL; }
+static inline void app_timer_cancel(AppTimer *t) {}
 extern time_t FAKE_NOW;
 #define time(x) (FAKE_NOW)
+// 0.30.0: battery, health, clock format — test values from the environment (AKKU=15 LAEDT=1 SCHRITTE=8432 PULS=64 H12=1)
+typedef struct { uint8_t charge_percent; bool is_charging; bool is_plugged; } BatteryChargeState;
+static inline BatteryChargeState battery_state_service_peek(void) {
+  return (BatteryChargeState){ (uint8_t)(getenv("AKKU") ? atoi(getenv("AKKU")) : 80), getenv("LAEDT") != NULL, getenv("LAEDT") != NULL };
+}
+static inline void battery_state_service_subscribe(void (*h)(BatteryChargeState)) {}
+static inline void battery_state_service_unsubscribe(void) {}
+static inline bool clock_is_24h_style(void) { return getenv("H12") == NULL; }
+#define PBL_HEALTH 1
+typedef int32_t HealthValue;
+typedef enum { HealthMetricStepCount, HealthMetricHeartRateBPM } HealthMetric;
+typedef enum { HealthServiceAccessibilityMaskAvailable = 1, HealthServiceAccessibilityMaskNoPermission = 2 } HealthServiceAccessibilityMask;
+static inline HealthValue health_service_sum_today(HealthMetric m) { return getenv("SCHRITTE") ? atoi(getenv("SCHRITTE")) : 0; }
+static inline HealthValue health_service_peek_current_value(HealthMetric m) { return getenv("PULS") ? atoi(getenv("PULS")) : 0; }
+static inline HealthServiceAccessibilityMask health_service_metric_accessible(HealthMetric m, time_t a, time_t b) {
+  return getenv("SCHRITTE") ? HealthServiceAccessibilityMaskAvailable : HealthServiceAccessibilityMaskNoPermission;
+}
+static inline time_t time_start_of_today(void) { return FAKE_NOW - FAKE_NOW % 86400; }

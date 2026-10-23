@@ -27,9 +27,9 @@ function wetterHolen(lat, lon) {
     xhr.onload = function () {
       try {
         if (xhr.status !== 200) return fehler(4, 'HTTP ' + xhr.status);
-        var p = logik.wetterPaket(JSON.parse(xhr.responseText), Date.now());
+        var j = JSON.parse(xhr.responseText), p = logik.wetterPaket(j, Date.now());
         laeuft = false;
-        senden({ WETTER: p.bytes, TAG: p.tag, STAND: Math.floor(Date.now() / 1000) });
+        senden({ WETTER: p.bytes, WETTER2: logik.wetter2Paket(j, Date.now()), TAG: p.tag, STAND: Math.floor(Date.now() / 1000) });   // WETTER2 since 0.30.0
         log('weather sent, day ' + p.tag);
       } catch (e) { fehler(3, 'parsing: ' + e); }
     };
@@ -57,6 +57,7 @@ function abrufen() {
 // Page: src/seite/einstellungen.html, turned into the module seite.js by tools/seite_erzeugen.py (runs in bauen.sh)
 var SEITE = require('./seite');
 var SYMBOLE = require('./symbole');   // since 0.22.0: symbols for the preview on the settings page
+var SCHRIFT = require('./schrift');   // since 0.28.0: font of the free text for the preview
 
 function gespeichert(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
 function farben() {
@@ -69,16 +70,20 @@ function tag() { return { farben: farben(), optionen: optionen() }; }
 function nacht() { return logik.nachtPruefen(gespeichert('nacht')); }
 function presets() { return logik.presetsPruefen(gespeichert('presets')); }
 function sprache() { return localStorage.getItem('sprache') === 'de' ? 'de' : 'en'; }   // page language, English by default (0.27.0)
+function glob() { return { zeitformat: logik.globalPruefen(gespeichert('global')).zeitformat, sprache: sprache() }; }   // 0.30.0
 
+// Since 0.30.0 presets and stock presets go to the page as differences from the default (std), the page as Base64
 Pebble.addEventListener('showConfiguration', function () {
-  var zustand = { tag: tag(), nacht: nacht(), presets: presets(), vorlagen: logik.vorlagen(), sprache: sprache() };
+  var zustand = { tag: tag(), nacht: nacht(), presets: logik.kompaktListe(presets()), vorlagen: logik.kompaktListe(logik.vorlagenBasis()),   // night looks: the page
+                  std: logik.STD, sprache: sprache(), global: logik.globalPruefen(gespeichert('global')) };
   var html = SEITE.split('/*ZUSTAND*/null').join(JSON.stringify(zustand))   // split/join: every occurrence, no $ patterns
                   .split('/*LISTE*/null').join(JSON.stringify(logik.FARBEN))
                   .split('/*LAGEN*/null').join(JSON.stringify(logik.DRUCKLAGEN))
                   .split('/*INHALTE*/null').join(JSON.stringify(logik.INHALTE))
                   .split('/*BLOECKE*/null').join(JSON.stringify(logik.BLOECKE))
-                  .split('/*SYMBOLE*/null').join(JSON.stringify(SYMBOLE));
-  Pebble.openURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+                  .split('/*SYMBOLE*/null').join(JSON.stringify(SYMBOLE))
+                  .split('/*SCHRIFT*/null').join(JSON.stringify(SCHRIFT));
+  Pebble.openURL(logik.seitenUrl(html));
 });
 
 Pebble.addEventListener('webviewclosed', function (e) {
@@ -90,16 +95,20 @@ Pebble.addEventListener('webviewclosed', function (e) {
     localStorage.setItem('farben', JSON.stringify(t.farben));
     localStorage.setItem('optionen', JSON.stringify(t.optionen));
     localStorage.setItem('nacht', JSON.stringify(n));
-    localStorage.setItem('presets', JSON.stringify(logik.presetsPruefen(d.presets)));
+    localStorage.setItem('presets', JSON.stringify(logik.presetsPruefen(d.presets)));   // compact from the page: the check fills in the default
     localStorage.removeItem('balken');
+    localStorage.removeItem('test');                 // the test switch of 0.29.0 is a button since 0.30.0
     if (d.sprache === 'de' || d.sprache === 'en') localStorage.setItem('sprache', d.sprache);
-    senden(logik.anUhr(t, n));
+    if (d.global) localStorage.setItem('global', JSON.stringify(logik.globalPruefen(d.global)));
+    var m = logik.anUhr(t, n, glob());
+    if (d.test === true) m.TEST = 1;               // button "Save & test": the watch shows the other theme for 30 s (0.30.0)
+    senden(m);
     log('settings saved, night mode ' + (n.an ? 'on' : 'off'));
   } catch (err) { log('settings: ' + err); }
 });
 
 // On start: report ready and send the settings right away (they apply without opening the settings page too)
 Pebble.addEventListener('ready', function () {
-  var d = logik.anUhr(tag(), nacht()); d.BEREIT = 1; senden(d);
+  var d = logik.anUhr(tag(), nacht(), glob()); d.BEREIT = 1; senden(d);
 });
 Pebble.addEventListener('appmessage', function (e) { if (e.payload.ANFRAGE !== undefined) abrufen(); });

@@ -4,8 +4,13 @@
 // Design: draft v7, digits after v8 D, shadow and time marker after v10 C/E, columns after v11 C
 // (design script watchface_entwurf.py, not in the repo). The phone fetches the weather (src/pkjs), at most hourly.
 // Since 0.22.0 symbols and temperature curve as block content (tools/symbole.py → symbole.h, draft tools/symbole_entwurf.py).
+// Since 0.28.0 optionally a 24-hour axis, free text as block content, one letter per digit cell (tools/schrift_erzeugen.py → schrift.h), 3D edge per block
+// and colours per symbol family.
+// Since 0.30.0 a main digit colour that every block, the time and every symbol family inherits (colour and 3D edge, each overridable),
+// weekday, battery, steps, heart rate, rain chance, UV, wind and gusts as block contents, battery and phone symbols, 12-hour time.
 #include <pebble.h>
 #include "symbole.h"
+#include "schrift.h"
 
 #define ABRUF_S       3600   // weather at most hourly
 #define WIEDERHOLEN_S 900    // no answer / no network: ask again every 15 min (until 0.6.1 every minute — battery)
@@ -13,11 +18,20 @@
 #define STUNDEN       17     // 04..20 h
 #define TAG_LEN       (2 * STUNDEN + 10)  // rain, pressure, low, high, sun: sunrise, sunset, dawn, dusk (minutes, 2 bytes each)
 #define ERW_LEN       48     // since 0.22.0 per day: 24 × temperature 00–23 h (int8), 24 × weather (bits 0–2 kind, 3–7 gusts / 5 km/h)
-#define WETTER_LEN    (2 * TAG_LEN + 2 * ERW_LEN)   // today and tomorrow (keeps data after midnight without the phone), followed by both extensions: 184
-#define FORMAT        4      // storage format; bump on change and the watch drops old data (3: twilight, 0.12.0; 4: hourly values, 0.22.0)
+#define NACHT_LEN     14     // since 0.28.0 per day: rain of the hours 00–04 and 21–24 h, pressure at 00–03 and 21–23 h (7 each)
+#define VOR_LEN       24     // since 0.29.0: evening before day 0, 16–23 h: rain (hour h to h+1), pressure, temperature (8 each)
+#define VOR_OFF       (2 * TAG_LEN + 2 * ERW_LEN + 2 * NACHT_LEN)
+#define WETTER_LEN    (VOR_OFF + VOR_LEN)   // today and tomorrow (keeps data after midnight without the phone), followed by both
+                                            // extensions, both night parts and the evening before (for the night axis): 236
+#define W2_LEN        144    // since 0.30.0, own packet: per day 24 × rain chance (%, hour h to h+1), 24 × UV index, 24 × wind (km/h) at 00–23 h
+#define FORMAT        7      // storage format; bump on change and the watch drops old data (3: twilight, 0.12.0; 4: hourly values, 0.22.0;
+                             // 5: night hours, 0.28.0; 6: evening before, 0.29.0; 7: second packet, 0.30.0)
+#define TEST_S        30     // test from the settings page (0.29.0 10 s, since 0.30.0 a button and 30 s): the other theme
+#define TEXT_MAX      4      // free text: characters per block, one per digit cell (0.28.0)
 #define FEHLT         255    // byte value for "no value"
 
-enum { PK_WETTER = 1, PK_TAG, PK_STAND, PK_FORMAT, PK_THEMA_TAG = 20, PK_THEMA_NACHT, PK_NACHTMODUS };
+enum { PK_WETTER = 1, PK_TAG, PK_STAND, PK_FORMAT, PK_THEMA_TAG = 20, PK_THEMA_NACHT, PK_NACHTMODUS, PK_TEXT_TAG, PK_TEXT_NACHT,
+       PK_WETTER2, PK_GLOBAL };   // 0.30.0
 // keys 5–19: settings stored one by one until 0.10.0, deleted on load
 
 // ---------- Colours: all of them selectable in the settings (since 0.5.0) ----------
@@ -26,7 +40,13 @@ enum { F_GRUND, F_SAEULE, F_REGEN, F_DRUCK, F_JETZT, F_ZIFFER, F_RAND, F_KANTE, 
        F_Z_TAG, F_Z_MONAT, F_Z_MIN, F_Z_MAX, F_S_NACHT, F_S_D1, F_S_D2, F_S_TAG, F_TLINIE, F_Z_AUF, F_Z_UNTER, F_AUF_B, F_UNTER_B,
        F_Z_AUF2, F_Z_UNTER2, F_AUF_B2, F_UNTER_B2, F_RAHMEN_Z, F_KURVE, F_K_KANTE, F_K_PUNKT,   // F_KURVE … since 0.22.0
        F_K_RAND, F_K_PKANTE, F_B_KURVE, F_B_KANTE, F_B_RAND, F_B_PUNKT, F_B_PKANTE,   // since 0.23.0
-       F_S_AUF, F_S_UNTER, F_ANZAHL };              // sunrise and sunset stripes, since 0.26.0   // F_RAHMEN_Z since 0.19.0   // F_ZIFFER = digits of the time; always append new colours at the end (0.10.0: F_Z_…, 0.12.0: F_S_…, 0.14.0: sun rows)
+       F_S_AUF, F_S_UNTER,                          // sunrise and sunset stripes, since 0.26.0
+       F_KANTE_B, F_KANTE_ZEIT = F_KANTE_B + 8,     // 0.28.0: 3D edge per block 0–7 and of the time; ERBEN = the common 3D edge
+       F_SF_PFEIL, F_SF_SCHIRM, F_SF_WARNUNG, F_SF_WETTER, F_SF_MOND, F_SF_ALT,   // 0.28.0: symbol families; ERBEN = block colour
+       F_HAUPT,                                     // 0.30.0: main digit colour; time and blocks inherit it (ERBEN)
+       F_SK_PFEIL, F_SK_SCHIRM, F_SK_WARNUNG, F_SK_WETTER, F_SK_MOND, F_SK_ALT,   // 0.30.0: 3D edge per symbol family; ERBEN = the block's
+       F_SF_FREUDE, F_SK_FREUDE,                    // 0.30.0: family of the positive symbols (heart, smiley …): colour, 3D edge
+       F_ANZAHL };   // F_RAHMEN_Z since 0.19.0   // F_ZIFFER = digits of the time; always append new colours at the end (0.10.0: F_Z_…, 0.12.0: F_S_…, 0.14.0: sun rows)
 // since 0.9.0 no own colours for past hours: every hour looks the same
 static const int32_t FARBE_STD[F_ANZAHL] = {
   0x000000,   // background
@@ -72,14 +92,24 @@ static const int32_t FARBE_STD[F_ANZAHL] = {
   0xAA00AA,   // edge of the dot
   0xFFAA00,   // sunrise stripe
   0xFF5500,   // sunset stripe
+  -1, -1, -1, -1, -1, -1, -1, -1, -1,   // 3D edge per block and of the time: inherit
+  -1, -1, -1, -1, -1, -1,               // symbol families: inherit
+  0xFFFFFF,                             // main digit colour (0.30.0). Time and block digits stay white above, which looks the same as
+                                        // inheriting it; the phone sends "inherit" for them by default
+  -1, -1, -1, -1, -1, -1,               // 3D edge per symbol family: inherit
+  -1, -1,                               // positive symbols: colour and 3D edge inherit
 };
-static uint8_t farb_code(int32_t hex) { return ((hex >> 16 & 255) / 85) << 4 | ((hex >> 8 & 255) / 85) << 2 | (hex & 255) / 85; }
+#define ERBEN 0x40                       // colour byte with bit 6: inherit (phone sends 64 for an empty colour, since 0.28.0)
+static uint8_t farb_code(int32_t hex) { return hex < 0 ? ERBEN : ((hex >> 16 & 255) / 85) << 4 | ((hex >> 8 & 255) / 85) << 2 | (hex & 255) / 85; }
 // Theme = all settings; one for the day, one for the night (since 0.11.0). A points to the one in effect
 // Number rows as blocks (0.14.0): row 1 at the top, 2, (3 = time, fixed), 4, 5 at the bottom; two blocks each, left/right.
 // Block k: 0 R1L 1 R1R 2 R2L 3 R2R 4 R4L 5 R4R 6 R5L 7 R5R. Content freely selectable (message BLOECKE, 8 bytes)
 enum { W_LEER, W_TAG, W_MONAT, W_TMIN, W_TMAX, W_AUF_H, W_AUF_M, W_UNTER_H, W_UNTER_M,
        W_TJETZT, W_TKURVE, W_BARO, W_BARO_HPA, W_SCHIRM, W_WARNUNG, W_WETTER, W_MOND, W_ALTER,   // W_TJETZT and up since 0.22.0
-       W_BKURVE,                                    // 0.23.0; append new contents here, up to 63
+       W_BKURVE,                                    // 0.23.0
+       W_TEXT,                                      // 0.28.0: free text
+       W_WOCHENTAG, W_AKKU, W_SCHRITTE, W_PULS, W_RISIKO, W_RISIKO12, W_UV, W_UVMAX, W_WIND, W_BOEEN,   // 0.30.0: numbers
+       W_AKKU_SYM, W_GETRENNT,                      // 0.30.0: smart symbols battery low, phone disconnected; append new contents here, up to 63
        W_ENDE, W_FEST = 64 };                       // W_FEST + s: symbol s, fixed (order as enum SYM_…), since 0.23.0 from 64
 static bool w_gueltig(int w) { return w < W_ENDE || (w >= W_FEST && w < W_FEST + SYM_ANZAHL); }
 static const uint8_t BLOCK_STD[8] = { W_AUF_H, W_AUF_M, W_TAG, W_MONAT, W_TMIN, W_TMAX, W_UNTER_H, W_UNTER_M };
@@ -102,10 +132,18 @@ typedef struct {
   bool voll_v, voll_h, regen_vorn;     // 0.17.0: time lines solid instead of dashed; rain cuts through the vertical one
   bool regen_rel;                       // 0.18.0: rain relative to the daily maximum (both positions), with threshold
   bool rahmen_z;                        // 0.19.0: shared frame around the time lines (LINIEN byte 2)
+  uint8_t achse;                        // time axis (SCHALTER, bits 7–8): 0 = 04–20 h, 1 = 00–24 h (0.28.0), 2 = 16–08 h with midnight
+                                        // in the middle (0.29.0); same size as the bool achse24 before, stored themes stay valid
 } Thema;
+static uint8_t s_text[2][8][TEXT_MAX];  // 0.28.0: free text per theme and block as character codes, 0 = end (message TEXTE, own storage key)
 static Thema s_th[2];
 static const Thema *A = &s_th[0];
 static bool s_nachtmodus;               // setting: night theme from sunset on
+static uint8_t s_zeitformat;            // 0.30.0 (message GLOBAL bits 0–1): 0 like the watch, 1 = 24 h, 2 = 12 h
+static bool s_deutsch;                  // 0.30.0 (GLOBAL bit 2): weekday in German (MO DI MI …), otherwise English
+static bool s_h12;                      // 12-hour time in effect, set in zeichnen()
+static time_t s_test_bis;               // 0.29.0: until then the other theme is shown (switch "Test" on the settings page)
+static AppTimer *s_test_t;
 // Options as one number (message OPTIONEN, 0.14.0): bits 0–8 bars, 9–10 pressure position, 11–12 rain position, 13 time marker,
 // 14 pressure, 15 rain full height, 16 sun position, 17 time-of-day line, 18 gradient, 19–21 threshold "rain at the bottom",
 // 22 vertical time line solid, 23 horizontal solid, 24 rain in front of the vertical line, 25 rain relative,
@@ -130,7 +168,7 @@ static void thema_std(Thema *t) {
 }
 
 static GColor farbe(int i) {
-  const int c = A->farbe[i];
+  const int c = A->farbe[i] & 0x3F;
   return GColorFromHEX(((c >> 4 & 3) * 0x55) << 16 | ((c >> 2 & 3) * 0x55) << 8 | (c & 3) * 0x55);
 }
 #define C_GRUND   farbe(F_GRUND)
@@ -140,7 +178,9 @@ static GColor farbe(int i) {
 #define C_JETZT   farbe(F_JETZT)
 #define C_ZIFFER  farbe(F_ZIFFER)
 #define C_RAND    farbe(F_RAND)
-#define C_KANTE   farbe(F_KANTE)
+static GColor s_kante;                  // 3D edge of the block being drawn (0.28.0: per block, otherwise the common one)
+#define C_KANTE   s_kante
+static GColor farbe_oder(int i, GColor ersatz) { return A->farbe[i] & ERBEN ? ersatz : farbe(i); }   // colour or, when inherited, the fallback
 #define C_BALKEN  farbe(F_BALKEN)
 // bars in row 2 or 4 (bits of blocks 2/3 or 4/5): pressure zones make way for them
 #define DATUM_AN (A->balken & 0x0C)
@@ -166,12 +206,20 @@ static GColor farbe(int i) {
 #define Y_AUF   (Y_DATUM - ZEILE)                        // 3: sunrise above the date (0.14.0)
 #define Y_UNTER (Y_TEMP + ZEILE)                         // 187: sunset below the temperature
 static const int16_t SPALTE[4] = { 0, 54, 107, 161 };    // evenly spaced, the last edge ends at the right border
+// Time axis of columns, rain, pressure line, vertical time line and curves (0.28.0): first hour, hours, px per hour,
+// column width, x of the first column. 04–20 h: 12 px per hour from the left border; 00–24 h: 8 px per hour, columns 4 px, from x 6;
+// 16–08 h (0.29.0): like 04–20 h, shifted by 12 hours, so midnight sits in the middle
+typedef struct { int16_t h0, n, p, b, x0; } Achse;
+static const Achse ACHSEN[3] = { { 4, STUNDEN, 12, SAEULE_B, 0 }, { 0, 24, 8, 4, 6 }, { 16, STUNDEN, 12, SAEULE_B, 0 } };
+#define AX (&ACHSEN[A->achse < 3 ? A->achse : 0])
 
 static Window *s_window;
 static Layer *s_layer;
 static GContext *g;
 
 static uint8_t s_wetter[WETTER_LEN];
+static uint8_t s_w2[W2_LEN];            // 0.30.0: rain chance, UV, wind per hour of both days (message WETTER2)
+static bool s_hat_w2;
 static int32_t s_tag;                  // data day YYYYMMDD of day 0
 static int32_t s_stand;                // fetch time (UTC)
 static bool s_hat_wetter;
@@ -261,7 +309,8 @@ static int loecher(char c, Rechteck *lo) {
 // Draw a shape made of rectangles with black outline and 3D edge: first the outline around all layers, then the edge, then the face.
 // Edge layers deeper than TIEFE_LOCH skip the closed holes so they stay open
 static void form(const Rechteck *r, int n, int x, int y, const Rechteck *lo_rel, int nl, GColor face) {
-  Rechteck lo[2];
+  Rechteck lo[6];                                  // digits up to 2 holes, letters of the free text up to 6 pieces (0.28.0)
+  if (nl > 6) nl = 6;
   for (int j = 0; j < nl; j++) lo[j] = (Rechteck){ x + lo_rel[j].x, y + lo_rel[j].y, lo_rel[j].w, lo_rel[j].h };
   for (int k = 0; k <= TIEFE; k++)
     for (int i = 0; i < n; i++)
@@ -364,9 +413,31 @@ static bool unter_balken(int x, int y) {
 }
 
 // ---------- Hourly values (since 0.22.0): hour H = 0–47 from midnight of day 0 ----------
+// Rain (0.1 mm, hour h to h+1) and pressure (byte, at h) of day d (0, 1) for every hour 0–23: 04–20 h from the day part,
+// the night hours (0.28.0) from the night part behind the extensions; FEHLT = missing
+static int nacht_i(int h) { return h < 4 ? h : h - 17; }   // 0–3 → 0–3, 21–23 → 4–6
+static int regen_std(int d, int h) {
+  if (d < 0 || d > 1 || h < 0 || h > 23) return FEHLT;
+  return h >= 4 && h <= 20 ? s_wetter[d * TAG_LEN + h - 4] : s_wetter[2 * TAG_LEN + 2 * ERW_LEN + d * NACHT_LEN + nacht_i(h)];
+}
+static int druck_std(int d, int h) {
+  if (d < 0 || d > 1 || h < 0 || h > 23) return FEHLT;
+  return h >= 4 && h <= 20 ? s_wetter[d * TAG_LEN + STUNDEN + h - 4] : s_wetter[2 * TAG_LEN + 2 * ERW_LEN + d * NACHT_LEN + 7 + nacht_i(h)];
+}
+// Hour H from midnight of day 0: 0–47 both days, since 0.29.0 also −8 to −1 = 16–23 h of the evening before (night axis after midnight)
+static int vor_i(int H) { return H >= -8 && H < 0 ? VOR_OFF + H + 8 : -1; }
+static int regen_H(int H) { const int v = vor_i(H); return v >= 0 ? s_wetter[v] : H < 0 || H >= 48 ? FEHLT : regen_std(H / 24, H % 24); }
+static int druck_H(int H) { const int v = vor_i(H); return v >= 0 ? s_wetter[v + 8] : H < 0 || H >= 48 ? FEHLT : druck_std(H / 24, H % 24); }
 static int temp_h(int H) {                        // whole degrees, -128 = missing
+  const int v = vor_i(H);
+  if (v >= 0) return (int8_t)s_wetter[v + 16];
   return H < 0 || H >= 48 ? -128 : (int8_t)s_wetter[2 * TAG_LEN + H / 24 * ERW_LEN + H % 24];
 }
+// Time axis (0.29.0): 16–08 h shows the night that is running or coming — before noon the one that began yesterday evening.
+// First hour of the axis as H, and the minutes since its start (negative before it)
+static bool achse_gestern(int jm) { return AX->h0 >= 12 && jm < 720; }
+static int achse_H0(int t, int jm) { return t * 24 + AX->h0 - (achse_gestern(jm) ? 24 : 0); }
+static int achse_rel(int jm) { return jm - AX->h0 * 60 + (achse_gestern(jm) ? 1440 : 0); }
 static int wetter_h(int H) {                      // bits 0–2 kind, 3–7 gusts / 5 km/h; FEHLT = missing
   return H < 0 || H >= 48 ? FEHLT : s_wetter[2 * TAG_LEN + H / 24 * ERW_LEN + 24 + H % 24];
 }
@@ -379,17 +450,16 @@ static int temp_jetzt(int t, int jm) {            // linear between two hourly v
   if (a == -128) return -128;
   return b == -128 ? a : a + rdiv((b - a) * (jm % 60), 60);
 }
-// Pressure at minute m from midnight of day 0 in 1/20 hPa: from the hourly values 04–20 h of both days, linear in between
-// (also across the night 20–04 h); -1 = unknown
+// Pressure at minute m from midnight of day 0 in 1/20 hPa: from the hourly values of both days, linear in between
+// (since 0.28.0 all 24 hours; before, the night 20–04 h was bridged linearly); -1 = unknown
 static int druck_um(int m) {
   int m0 = -1, b0 = 0, m1 = -1, b1 = 0;
-  for (int d = 0; d < 2; d++)
-    for (int i = 0; i < STUNDEN; i++) {
-      const int b = s_wetter[d * TAG_LEN + STUNDEN + i], mi = d * 1440 + (4 + i) * 60;
-      if (b == FEHLT) continue;
-      if (mi <= m) { m0 = mi; b0 = b; }
-      else if (m1 < 0) { m1 = mi; b1 = b; }
-    }
+  for (int H = -8; H < 48; H++) {                 // since 0.29.0 with the evening before: the trend works right after midnight too
+    const int b = druck_H(H), mi = H * 60;
+    if (b == FEHLT) continue;
+    if (mi <= m) { m0 = mi; b0 = b; }
+    else if (m1 < 0) { m1 = mi; b1 = b; }
+  }
   if (m0 < 0) return -1;
   if (m0 == m) return b0 * 10;
   if (m1 < 0) return -1;
@@ -416,9 +486,9 @@ static bool frost(int t, int jm) {                // 0 °C or colder in the next
 }
 static int mondphase(time_t now) {                // 0 new moon, 1 waxing crescent … 4 full moon … 7 waning crescent
   const int32_t P = 2551443;                      // synodic month (29.53 days) in s; reference: new moon 6 Jan 2000 18:14 UTC
-  int32_t a = (int32_t)((int64_t)(now - 947182440) % P);
+  int32_t a = (int32_t)(now - 947182440) % P;     // 32 bits until 2068; 64-bit division cost 0.75 KB of library code (0.30.0)
   if (a < 0) a += P;
-  return (int)(((int64_t)a * 8 + P / 2) / P) % 8;
+  return (int)((a * 8 + P / 2) / P) % 8;
 }
 
 // Shape from a bitmask (rows, bit 7 = left column, cell q × q px): outline around all layers, edge, face — like form()
@@ -438,16 +508,30 @@ static void bits_form(const uint8_t *m, int bw, int bh, int q, int x, int y, GCo
   for (int k = TIEFE; k >= 1; k--) laeufe(m, bw, bh, q, x + k, y + k, 0, kante);
   laeufe(m, bw, bh, q, x, y, 0, face);
 }
+// Family of a symbol (0.28.0): 0 arrows, 1 umbrella, 2 warnings, 3 weather, 4 moon, 5 status (stale data; since 0.30.0 battery, phone),
+// 6 positive symbols (0.30.0). Families by shape, wherever the symbol shows up: the moon of "weather now" at night is a moon.
+// Colour: the family's or, when it inherits, the digit colour of the block; 3D edge (0.30.0): the family's or the block's
+static const uint8_t F_FAM[7] = { F_SF_PFEIL, F_SF_SCHIRM, F_SF_WARNUNG, F_SF_WETTER, F_SF_MOND, F_SF_ALT, F_SF_FREUDE };
+static const uint8_t F_FAM_K[7] = { F_SK_PFEIL, F_SK_SCHIRM, F_SK_WARNUNG, F_SK_WETTER, F_SK_MOND, F_SK_ALT, F_SK_FREUDE };
+static int sym_familie(int s) {
+  return s <= SYM_FAELLT ? 0 : s == SYM_SCHIRM ? 1 : s <= SYM_WINDSACK ? 2 : s >= SYM_HERZ ? 6 : s == SYM_VERALTET || s >= SYM_AKKU ? 5 :
+         s <= SYM_NEBEL ? 3 : 4;
+}
+static GColor sym_farbe(int s, GColor face) { return farbe_oder(F_FAM[sym_familie(s)], face); }
+static GColor sym_kante(int s) { return farbe_oder(F_FAM_K[sym_familie(s)], C_KANTE); }
 static void symbol(int s, int x, int y, GColor face) {   // part by part, each with its own outline; dark parts flat in the edge colour
+  face = sym_farbe(s, face);
+  const GColor kante = sym_kante(s);
   for (int i = SYM_START[s]; i < SYM_START[s + 1]; i++) {
-    if (!SYM_DUNKEL[i]) { bits_form(SYM_TEIL[i], SYM_GROESSE, SYM_GROESSE, 1, x, y, face, C_KANTE, C_RAND); continue; }
+    if (!SYM_DUNKEL[i]) { bits_form(SYM_TEIL[i], SYM_GROESSE, SYM_GROESSE, 1, x, y, face, kante, C_RAND); continue; }
     laeufe(SYM_TEIL[i], SYM_GROESSE, SYM_GROESSE, 1, x, y, 1, C_RAND);
-    laeufe(SYM_TEIL[i], SYM_GROESSE, SYM_GROESSE, 1, x, y, 0, C_KANTE);
+    laeufe(SYM_TEIL[i], SYM_GROESSE, SYM_GROESSE, 1, x, y, 0, kante);
   }
 }
 
 // Curves 04–20 h in a block (temperature since 0.22.0, pressure since 0.23.0): 88 × 34 px on a 2 px grid, stroke 6 px,
-// dot at the current time, all colours selectable per curve. Maths in 1/16 px: hour i at x = 3 + i · 82/16
+// dot at the current time, all colours selectable per curve. Maths in 1/16 px: hour i at x = 3 + i · 82/16.
+// Since 0.28.0 with the 24-hour axis 25 points 00–24 h, hour i at x = 3 + i · 82/24
 static bool nah(int cx, int cy, int ax, int ay, int bx, int by) {   // distance dot–segment ≤ 3 px
   const int dx = bx - ax, dy = by - ay, ex = cx - ax, ey = cy - ay, R2 = 48 * 48;
   const int32_t dot = ex * dx + ey * dy, len2 = dx * dx + dy * dy;
@@ -457,64 +541,74 @@ static bool nah(int cx, int cy, int ax, int ay, int bx, int by) {   // distance 
   return cr * cr <= (int64_t)R2 * len2;
 }
 #define KEIN -9999                                // curve value missing
-// Curve from 17 hourly values v (KEIN = missing), scale lo (bottom) to hi (top); f = colours line, edge, outline, dot, edge of the dot
-static void kurve(const int *v, int lo, int hi, int jm, int x, int y, const uint8_t *f) {
-  int px[STUNDEN], py[STUNDEN];
-  for (int i = 0; i < STUNDEN; i++) { px[i] = 48 + 82 * i; py[i] = v[i] == KEIN ? 0 : (hi > lo ? rdiv(28 * (hi - v[i]), hi - lo) : 14) * 16 + 48; }
+#define KURVE_MAX 25                              // points: 17 (04–20 h) or 25 (00–24 h, since 0.28.0)
+// Curve from n hourly values v (KEIN = missing), scale lo (bottom) to hi (top); rel = minutes since the first point (dot "now");
+// f = colours line, edge, outline, dot, edge of the dot
+static void kurve(const int *v, int n, int rel, int lo, int hi, int x, int y, const uint8_t *f) {
+  int px[KURVE_MAX], py[KURVE_MAX];
+  const int w = 1312;                               // 82 px in 1/16 px from the first to the last point
+  for (int i = 0; i < n; i++) { px[i] = 48 + w * i / (n - 1); py[i] = v[i] == KEIN ? 0 : (hi > lo ? rdiv(28 * (hi - v[i]), hi - lo) : 14) * 16 + 48; }
   uint8_t m[17 * 6];
   memset(m, 0, sizeof m);
   for (int gy = 0; gy < 17; gy++)
     for (int gx = 0; gx < 44; gx++) {
       const int cx = (2 * gx + 1) * 16, cy = (2 * gy + 1) * 16;
-      int i0 = (cx - 178) / 82, i1 = cx / 82;     // only segments close enough in x
+      int i0 = (cx - 96) * (n - 1) / w - 1, i1 = cx * (n - 1) / w;   // only segments close enough in x
       if (i0 < 0) i0 = 0;
-      if (i1 > STUNDEN - 2) i1 = STUNDEN - 2;
+      if (i1 > n - 2) i1 = n - 2;
       for (int i = i0; i <= i1; i++)
         if (v[i] != KEIN && v[i + 1] != KEIN && nah(cx, cy, px[i], py[i], px[i + 1], py[i + 1])) { m[gy * 6 + gx / 8] |= 0x80 >> (gx % 8); break; }
     }
   bits_form(m, 44, 17, 2, x, y, farbe(f[0]), farbe(f[1]), farbe(f[2]));
-  if (jm < 240 || jm > 1200) return;               // dot only 04:00–20:00
-  const int i = (jm - 240) / 60;
+  if (rel < 0 || rel > (n - 1) * 60) return;        // dot only between the first and the last point (04:00–20:00, 16:00–08:00 or all day)
+  const int i = rel / 60;
   if (v[i] == KEIN) return;
   int yy = py[i];
-  if (i + 1 < STUNDEN && v[i + 1] != KEIN) yy += rdiv((py[i + 1] - py[i]) * ((jm - 240) % 60), 60);
+  if (i + 1 < n && v[i + 1] != KEIN) yy += rdiv((py[i + 1] - py[i]) * (rel % 60), 60);
   static const uint8_t PUNKT[8] = { 255, 255, 255, 255, 255, 255, 255, 255 };
-  bits_form(PUNKT, 8, 8, 1, x + (48 + rdiv(82 * (jm - 240), 60)) / 16 - 4, y + yy / 16 - 4, farbe(f[3]), farbe(f[4]), farbe(f[2]));
+  bits_form(PUNKT, 8, 8, 1, x + (48 + rdiv(w * rel, 60 * (n - 1))) / 16 - 4, y + yy / 16 - 4, farbe(f[3]), farbe(f[4]), farbe(f[2]));
 }
+static int kurve_n(void) { return A->achse == 1 ? 25 : STUNDEN; }   // 00–24 h has a point at 24:00, so the dot runs until midnight
 static void temp_kurve(int t, int jm, int x, int y) {   // low at the bottom, high at the top
   static const uint8_t F[5] = { F_KURVE, F_K_KANTE, F_K_RAND, F_K_PUNKT, F_K_PKANTE };
-  int v[STUNDEN], lo = 127, hi = -127, n = 0;
-  for (int i = 0; i < STUNDEN; i++) {
-    const int w = temp_h(t * 24 + 4 + i);
+  const int nk = kurve_n();
+  int v[KURVE_MAX], lo = 127, hi = -127, n = 0;
+  for (int i = 0; i < nk; i++) {
+    const int w = temp_h(achse_H0(t, jm) + i);
     v[i] = w == -128 ? KEIN : w;
     if (w == -128) continue;
     n++; if (w < lo) lo = w; if (w > hi) hi = w;
   }
-  if (n) kurve(v, lo, hi, jm, x, y, F);
+  if (n) kurve(v, nk, achse_rel(jm), lo, hi, x, y, F);
 }
 // Pressure curve (since 0.23.0): shows the trend of the day. Daily range, but at least 8 hPa from bottom to top —
 // a calm day stays flat, a low shows up. Byte = 0.5 hPa
 #define DRUCK_SPANNE 16
 static void druck_kurve(int t, int jm, int x, int y) {
   static const uint8_t F[5] = { F_B_KURVE, F_B_KANTE, F_B_RAND, F_B_PUNKT, F_B_PKANTE };
-  const uint8_t *d = s_wetter + t * TAG_LEN;
-  int v[STUNDEN], lo = 1000, hi = -1, n = 0;
-  for (int i = 0; i < STUNDEN; i++) {
-    const int b = d[STUNDEN + i];
+  const int nk = kurve_n();
+  int v[KURVE_MAX], lo = 1000, hi = -1, n = 0;
+  for (int i = 0; i < nk; i++) {
+    const int b = druck_H(achse_H0(t, jm) + i);
     v[i] = b == FEHLT ? KEIN : b;
     if (b == FEHLT) continue;
     n++; if (b < lo) lo = b; if (b > hi) hi = b;
   }
   if (!n) return;
   if (hi - lo < DRUCK_SPANNE) { lo = (lo + hi - DRUCK_SPANNE) / 2; hi = lo + DRUCK_SPANNE; }
-  kurve(v, lo, hi, jm, x, y, F);
+  kurve(v, nk, achse_rel(jm), lo, hi, x, y, F);
 }
 
 // Cell contents (since 0.22.0): a symbol sits in a cell like a digit — fixed or when there is a reason.
 // Numbers, curve and "baro with hPa" take the whole block
-static bool ist_zelle(int w) { return w == W_LEER || w == W_BARO || (w >= W_SCHIRM && w <= W_ALTER) || (w >= W_FEST && w < W_FEST + SYM_ANZAHL); }
+static bool ist_zelle(int w) {
+  return w == W_LEER || w == W_BARO || (w >= W_SCHIRM && w <= W_ALTER) || w == W_AKKU_SYM || w == W_GETRENNT || (w >= W_FEST && w < W_FEST + SYM_ANZAHL);
+}
+#define AKKU_WARN 20                              // 0.30.0: battery symbol from 20 % down, not while charging
 static int zell_symbol(int w, int t, int jm, time_t now) {   // symbol or -1 (no reason, no data)
   if (w >= W_FEST) return w - W_FEST;
+  if (w == W_AKKU_SYM) { const BatteryChargeState b = battery_state_service_peek(); return b.charge_percent <= AKKU_WARN && !b.is_charging ? SYM_AKKU : -1; }
+  if (w == W_GETRENNT) return connection_service_peek_pebble_app_connection() ? -1 : SYM_GETRENNT;
   if (w == W_ALTER) return t < 0 || now - s_stand > ALTER_S ? SYM_VERALTET : -1;
   if (w == W_MOND) return SYM_NEUMOND + mondphase(now);
   if (t < 0) return -1;
@@ -556,7 +650,44 @@ static void block_bild(int w, int t, int jm, time_t now, int x, int y, GColor c)
   if (w == W_BKURVE) { druck_kurve(t, jm, x, y); return; }
   const int s = zell_symbol(W_BARO, t, jm, now), d = tendenz(t, jm), h = rdiv(d < 0 ? -d : d, 20);
   if (s < 0) return;
-  symbol(s, x, y, c); ziffer('0' + (h > 9 ? 9 : h), x + SPALTE[1], y, c);
+  symbol(s, x, y, c);
+  const GColor alt = s_kante;
+  s_kante = sym_kante(s);                           // the digit in the arrow colour (0.28.0) and with the arrow's 3D edge (0.30.0)
+  ziffer('0' + (h > 9 ? 9 : h), x + SPALTE[1], y, sym_farbe(s, c));
+  s_kante = alt;
+}
+
+// Free text (0.28.0): one character per digit cell, built like the digits — rectangles on the grid of the digit segments
+// (strokes 8 px), drawn with form(): outline, 3D edge, flatter edge in closed holes. Digits and the minus are the clock's own.
+// Since the letters sit in the digit columns, every character stands exactly above a digit
+#define SCHRIFT_ERSTE 32
+static const int16_t RASTER_X[6] = { 0, 8, 13, 21, 26, 34 };
+static const int16_t RASTER_Y[2][7] = { { 0, 8, 13, 21, 26, 34 }, { 0, 6, 10, 16, 20, 26, 34 } };   // like the digits; umlauts with dots on top
+static int raster_rechtecke(uint32_t m, int art, Rechteck *r) {   // filled cells per row as runs → rectangles
+  const int16_t *gy = RASTER_Y[art];
+  int n = 0;
+  for (int z = 0; z < 5 + art; z++)
+    for (int s = 0; s < 5; ) {
+      if (!(m >> (z * 5 + s) & 1)) { s++; continue; }
+      int e = s;
+      while (e < 5 && (m >> (z * 5 + e) & 1)) e++;
+      r[n++] = (Rechteck){ RASTER_X[s], gy[z], RASTER_X[e] - RASTER_X[s], gy[z + 1] - gy[z] };
+      s = e;
+    }
+  return n;
+}
+static void buchstabe(int c, int x, int y, GColor face) {
+  if ((c >= '0' && c <= '9') || c == '-') { ziffer(c, x, y, face); return; }
+  if (c < SCHRIFT_ERSTE || c >= SCHRIFT_ERSTE + 69 || !SCHRIFT[c - SCHRIFT_ERSTE].m) return;   // space or unknown: empty cell
+  const Glyphe *gl = &SCHRIFT[c - SCHRIFT_ERSTE];
+  Rechteck r[18], lo[18];
+  const int n = raster_rechtecke(gl->m, gl->art, r), nl = raster_rechtecke(gl->loch, gl->art, lo);
+  form(r, n, x, y, lo, nl, face);
+}
+// Block: its two cells; the left block also takes the right block's cells when that one is empty (4 characters per row)
+static void text_zeichnen(const uint8_t *c, int sei, bool ganz, int y, GColor face) {
+  const int n = sei == 0 && ganz ? 4 : 2;
+  for (int i = 0; i < n && i < TEXT_MAX && c[i]; i++) buchstabe(c[i], SPALTE[2 * sei + i], y, face);
 }
 
 // Two characters of a block by content; true = minus next to the 1 (−10..−19). Empty = space (draws nothing)
@@ -571,7 +702,7 @@ static bool block_zellen(int w, const struct tm *lt, const uint8_t *d, char *z) 
     case W_AUF_H: case W_AUF_M: case W_UNTER_H: case W_UNTER_M: {
       const int m = d ? sonne_min(d, w >= W_UNTER_H) : -1;
       if (m < 0) { z[0] = z[1] = '-'; return false; }
-      v = (w == W_AUF_H || w == W_UNTER_H) ? m / 60 % 100 : m % 60;
+      v = (w == W_AUF_H || w == W_UNTER_H) ? (s_h12 ? (m / 60 + 11) % 12 + 1 : m / 60 % 100) : m % 60;   // 12 h since 0.30.0
       break;
     }
     default: return false;
@@ -579,6 +710,70 @@ static bool block_zellen(int w, const struct tm *lt, const uint8_t *d, char *z) 
   z[0] = '0' + v / 10 % 10; z[1] = '0' + v % 10;
   return false;
 }
+
+// ---------- Contents since 0.30.0: weekday, watch values, rain chance, UV, wind ----------
+// Second packet per day (72 bytes): 24 × rain chance (hour h to h+1), 24 × UV, 24 × wind at h; 255 = missing
+static int w2_h(int art, int H) { return !s_hat_w2 || H < 0 || H >= 48 ? FEHLT : s_w2[H / 24 * 72 + art * 24 + H % 24]; }
+static int w2_jetzt(int art, int t, int jm) {     // UV and wind linear between two hours; rain chance: the running hour
+  const int H = t * 24 + jm / 60, a = w2_h(art, H), b = w2_h(art, H + 1);
+  if (a == FEHLT) return -1;
+  return art == 0 || b == FEHLT ? a : a + rdiv((b - a) * (jm % 60), 60);
+}
+static int w2_max(int art, int H0, int n) {       // highest value of n hours from H0; -1 = none
+  int m = -1;
+  for (int H = H0; H < H0 + n; H++) { const int v = w2_h(art, H); if (v != FEHLT && v > m) m = v; }
+  return m;
+}
+static int puls(void) {
+#if defined(PBL_HEALTH)
+  const HealthValue v = health_service_peek_current_value(HealthMetricHeartRateBPM);
+  return v > 0 ? (int)v : -1;
+#else
+  return -1;
+#endif
+}
+static int schritte(void) {
+#if defined(PBL_HEALTH)
+  const time_t von = time_start_of_today(), bis = time(NULL);
+  if (!(health_service_metric_accessible(HealthMetricStepCount, von, bis) & HealthServiceAccessibilityMaskAvailable)) return -1;
+  const HealthValue v = health_service_sum_today(HealthMetricStepCount);
+  return v >= 0 ? (int)v : -1;
+#else
+  return -1;
+#endif
+}
+// Characters of a number block: below 100 two digits with a leading zero like the temperatures; from 100 on it runs into the right
+// block when that one is empty (frei, up to 4 cells), otherwise 99. Steps: two cells = thousands, four cells exact, from 10,000 "12K".
+// -1 = missing ("--"). Returns the number of cells
+static int zahl_zellen(int w, int v, bool frei, char *z) {
+  z[0] = z[1] = z[2] = z[3] = ' ';
+  if (v < 0) { z[0] = z[1] = '-'; return 2; }
+  if (w == W_SCHRITTE && !frei) v /= 1000;
+  if (w == W_SCHRITTE && frei && v >= 10000) { v = v / 1000 > 99 ? 99 : v / 1000; z[0] = '0' + v / 10; z[1] = '0' + v % 10; z[2] = 'K'; return 4; }
+  if (v < 100 || !frei) { if (v > 99) v = 99; z[0] = '0' + v / 10; z[1] = '0' + v % 10; return 2; }
+  char b[8];
+  snprintf(b, sizeof b, "%d", v > 9999 ? 9999 : v);
+  for (int i = 0; b[i] && i < 4; i++) z[i] = b[i];
+  return 4;
+}
+static int neu_wert(int w, int t, int jm, const struct tm *lt) {   // value of a number content, -1 = missing
+  switch (w) {
+    case W_AKKU:     return battery_state_service_peek().charge_percent;
+    case W_SCHRITTE: return schritte();
+    case W_PULS:     return puls();
+  }
+  if (t < 0) return -1;
+  switch (w) {
+    case W_RISIKO:   return w2_jetzt(0, t, jm);
+    case W_RISIKO12: return w2_max(0, t * 24 + jm / 60, 12);
+    case W_UV:       return w2_jetzt(1, t, jm);
+    case W_UVMAX:    return w2_max(1, t * 24, 24);
+    case W_WIND:     return w2_jetzt(2, t, jm);
+    case W_BOEEN:    { const int v = wetter_h(t * 24 + jm / 60); return v == FEHLT ? -1 : (v >> 3) * 5; }
+  }
+  return -1;
+}
+static const char WOCHENTAG[2][7][3] = { { "SU", "MO", "TU", "WE", "TH", "FR", "SA" }, { "SO", "MO", "DI", "MI", "DO", "FR", "SA" } };
 
 // Line with a t×t brush (horizontally centred, top at the point), Bresenham — own routine so watch and Mac preview draw the same
 static void linie(int x0, int y0, int x1, int y1, int t, GColor c) {
@@ -633,33 +828,39 @@ static void zeichnen(Layer *l, GContext *ctx) {
   time_t now = time(NULL);
   struct tm lokal = *localtime(&now);
   const int jm = lokal.tm_hour * 60 + lokal.tm_min;
-  A = &s_th[ist_nacht(jm) ? 1 : 0];
+  A = &s_th[ist_nacht(jm) != (now < s_test_bis) ? 1 : 0];   // test (0.29.0): the other theme for a few seconds
   const int t = heute_index();
   const uint8_t *d = t >= 0 ? s_wetter + t * TAG_LEN : NULL;
-  int vmax = 0;                                     // daily rain maximum from the threshold (for "rain at the bottom")
-  for (int i = 0; d && i < STUNDEN; i++) if (d[i] != FEHLT && d[i] >= SCHWELLE_Z[A->schwelle] && d[i] > vmax) vmax = d[i];
+  const Achse *ax = AX;                             // 04–20 h, 00–24 h (0.28.0) or 16–08 h (0.29.0)
+  const int H0 = achse_H0(t, jm);                   // first hour of the axis, from midnight of day 0
+  int vmax = 0;                                     // rain maximum of the hours shown, from the threshold (for "relative")
+  for (int i = 0; d && i < ax->n; i++) {
+    const int r = regen_H(H0 + i);
+    if (r != FEHLT && r >= SCHWELLE_Z[A->schwelle] && r > vmax) vmax = r;
+  }
   if (!(A->sonne && d && himmel(d))) flaeche(0, 0, 200, 228, C_GRUND);
-  int hr[STUNDEN] = { 0 };                          // rain height per column, for "rain in front of the vertical line"
-  for (int i = 0; i < STUNDEN; i++) {
-    const int x0 = 12 * i;
-    if (A->saeulen) flaeche(x0, 0, SAEULE_B, 228, C_GEIST);
-    if (!d) continue;
-    if (d[i] != FEHLT) {
-      int h = regen_px(d[i], vmax);
-      if (h > 228) h = 228;
-      if (h) flaeche(x0, 228 - h, SAEULE_B, h, C_REGEN);
-      hr[i] = h;
-    }
+  int hr[24] = { 0 };                               // rain height per column, for "rain in front of the vertical line"
+  for (int i = 0; i < ax->n; i++) {
+    const int x0 = ax->x0 + ax->p * i, r = d ? regen_H(H0 + i) : FEHLT;
+    if (A->saeulen) flaeche(x0, 0, ax->b, 228, C_GEIST);
+    if (r == FEHLT) continue;
+    int h = regen_px(r, vmax);
+    if (h > 228) h = 228;
+    if (h) flaeche(x0, 228 - h, ax->b, h, C_REGEN);
+    hr[i] = h;
   }
   for (int y = 0; y < 228; y++)                     // day and twilight in front of the rain (0.25.1)
     if (vor_regen(d, y)) himmel_zeile(y, sonne_min(d, 0), sonne_min(d, 1), sonne_min(d, 2), sonne_min(d, 3));
-  for (int i = 0; d && A->luftdruck && !A->druckvoll && i < STUNDEN; i++)   // baro dashed; columns do not overlap, order does not matter
-    if (d[STUNDEN + i] != FEHLT) flaeche(12 * i, druck_y(d[STUNDEN + i]), SAEULE_B, A->dicke_d, C_DRUCK);
+  for (int i = 0; d && A->luftdruck && !A->druckvoll && i < ax->n; i++) {   // baro dashed; columns do not overlap, order does not matter
+    const int b = druck_H(H0 + i);
+    if (b != FEHLT) flaeche(ax->x0 + ax->p * i, druck_y(b), ax->b, A->dicke_d, C_DRUCK);
+  }
   if (d && A->luftdruck && A->druckvoll) {        // baro continuous: line through the hourly values (column centre), horizontal at the edges
     int px = -1, py = 0;
-    for (int i = 0; i < STUNDEN; i++) {
-      if (d[STUNDEN + i] == FEHLT) continue;
-      const int x = 12 * i + 3, y = druck_y(d[STUNDEN + i]);
+    for (int i = 0; i < ax->n; i++) {
+      const int b = druck_H(H0 + i);
+      if (b == FEHLT) continue;
+      const int x = ax->x0 + ax->p * i + ax->b / 2, y = druck_y(b);
       linie(px < 0 ? 0 : px, px < 0 ? y : py, x, y, A->dicke_d, C_DRUCK);
       px = x; py = y;
     }
@@ -691,8 +892,9 @@ static void zeichnen(Layer *l, GContext *ctx) {
     if (A->voll_h) lr[nh++] = GRect(0, yl, 200, A->dicke_h);
     else for (int x = 0; x < 200; x += 8) lr[nh++] = GRect(x, yl, 4, A->dicke_h);
   }
-  const int xj = (jm - 240) / 5;                  // 12 px per hour, 04:00 at the left border
-  const bool senkrecht = A->zeitmarke && jm >= 240 && xj <= 198;
+  const int rel = achse_rel(jm), xj = ax->x0 + rel * ax->p / 60;   // 04–20 h: 12 px per hour, 04:00 at the left border; 00–24 h: 8 px
+                                                                    // from x 6; 16–08 h: like 04–20 h from 16:00
+  const bool senkrecht = A->zeitmarke && (A->achse == 1 || (rel >= 0 && xj <= 198));
   const int l0 = xj - (A->dicke_v - 1) / 2, l1 = l0 + A->dicke_v;
   if (senkrecht) {                                  // vertical, centred; dashed or solid
     if (A->voll_v) lr[nh + nv++] = GRect(l0, 0, A->dicke_v, 228);
@@ -705,8 +907,9 @@ static void zeichnen(Layer *l, GContext *ctx) {
     flaeche(lr[i].origin.x, lr[i].origin.y, lr[i].size.w, lr[i].size.h, i < nh ? farbe(F_TLINIE) : C_JETZT);
   if (senkrecht && A->regen_vorn) {               // rain cuts through the line (and frame): drawn again on top, but not over bars
     const int r0 = A->rahmen_z ? l0 - 1 : l0, r1 = A->rahmen_z ? l1 + 1 : l1;
-    for (int i = 0; i < STUNDEN; i++)
-      for (int x = r0 > 12 * i ? r0 : 12 * i; x < (r1 < 12 * i + SAEULE_B ? r1 : 12 * i + SAEULE_B); x++) {
+    for (int i = 0; i < ax->n; i++) {
+      const int c0 = ax->x0 + ax->p * i, c1 = c0 + ax->b;   // column i
+      for (int x = r0 > c0 ? r0 : c0; x < (r1 < c1 ? r1 : c1); x++) {
         if (x < 0 || x >= 200) continue;
         int y0 = -1;                                // draw vertical runs without bars
         for (int y = 228 - hr[i]; y <= 228; y++) {
@@ -715,16 +918,38 @@ static void zeichnen(Layer *l, GContext *ctx) {
           if (!frei && y0 >= 0) { flaeche(x, y0, 1, y - y0, C_REGEN); y0 = -1; }
         }
       }
+    }
   }
 
   char z[24];   // 4 digits; room for the compiler, which assumes int ranges
-  snprintf(z, sizeof z, "%02d%02d", lokal.tm_hour, lokal.tm_min);
-  zeile(z, Y_ZEIT, C_ZIFFER, C_ZIFFER);
+  s_h12 = s_zeitformat == 2 || (s_zeitformat == 0 && !clock_is_24h_style());   // 12-hour time (0.30.0): no leading zero
+  if (s_h12) snprintf(z, sizeof z, "%2d%02d", (lokal.tm_hour + 11) % 12 + 1, lokal.tm_min);
+  else snprintf(z, sizeof z, "%02d%02d", lokal.tm_hour, lokal.tm_min);
+  const GColor kante = farbe(F_KANTE), haupt = farbe(F_HAUPT);   // main digit colour (0.30.0): time and blocks inherit it
+  s_kante = farbe_oder(F_KANTE_ZEIT, kante);        // 3D edge per row and block (0.28.0), otherwise the common one
+  const GColor zc = farbe_oder(F_ZIFFER, haupt);
+  zeile(z, Y_ZEIT, zc, zc);
   for (int r = 0; r < 4; r++) {
     if (!an[r]) continue;
     for (int sei = 0; sei < 2; sei++) {
       const int k = 2 * r + sei, w = A->block[k], x = SPALTE[2 * sei];
-      const GColor c = farbe(F_BLOCK_Z[k]);
+      const GColor c = farbe_oder(F_BLOCK_Z[k], haupt);
+      s_kante = farbe_oder(F_KANTE_B + k, kante);
+      const bool frei = sei == 0 && A->block[k + 1] == W_LEER && A->zweit[k + 1] == W_LEER;   // the right block is empty
+      if (w == W_TEXT) {                              // free text: one character per cell; the left block runs into an empty right one
+        text_zeichnen(s_text[A - s_th][k], sei, frei, RY[r], c);
+        continue;
+      }
+      if (w == W_WOCHENTAG) {                         // 0.30.0: two letters like the free text
+        for (int i = 0; i < 2; i++) buchstabe(WOCHENTAG[s_deutsch][lokal.tm_wday % 7][i], SPALTE[2 * sei + i], RY[r], c);
+        continue;
+      }
+      if (w >= W_AKKU && w <= W_BOEEN) {              // 0.30.0: numbers, from 100 on into an empty right block
+        char zz[4];
+        const int n = zahl_zellen(w, neu_wert(w, t, jm, &lokal), frei, zz);
+        for (int i = 0; i < n; i++) buchstabe(zz[i], SPALTE[2 * sei + i], RY[r], c);
+        continue;
+      }
       if (w == W_TKURVE || w == W_BKURVE || w == W_BARO_HPA) { block_bild(w, t, jm, now, x, RY[r], c); continue; }
       if (ist_zelle(w)) {                             // symbols per cell; a single one sits centred in the block
         const int s1 = w == W_LEER ? -1 : zell_symbol(w, t, jm, now), w2 = A->zweit[k];
@@ -756,7 +981,11 @@ static void anfragen(time_t now) {
 
 static void handy_verbindung(bool da) {
   if (da) { s_letzte_anfrage = 0; s_warte_s = WIEDERHOLEN_S; if (braucht_wetter(time(NULL))) anfragen(time(NULL)); }
+  layer_mark_dirty(s_layer);                        // symbol "phone disconnected" (0.30.0)
 }
+static void akku_neu(BatteryChargeState b) { layer_mark_dirty(s_layer); }   // battery number and symbol (0.30.0)
+
+static void test_ende(void *d) { s_test_t = NULL; layer_mark_dirty(s_layer); }
 
 static void empfangen(DictionaryIterator *it, void *ctx) {
   Tuple *t;
@@ -775,12 +1004,17 @@ static void empfangen(DictionaryIterator *it, void *ctx) {
     s_fehler = 0; s_warte_s = WIEDERHOLEN_S;
     persist_write_data(PK_WETTER, s_wetter, WETTER_LEN);
   }
+  if ((t = dict_find(it, MESSAGE_KEY_WETTER2)) && t->length == W2_LEN) {   // 0.30.0: rain chance, UV, wind
+    memcpy(s_w2, t->value->data, W2_LEN);
+    s_hat_w2 = true;
+    persist_write_data(PK_WETTER2, s_w2, W2_LEN);
+  }
   if ((t = dict_find(it, MESSAGE_KEY_TAG))) { s_tag = t->value->int32; persist_write_int(PK_TAG, s_tag); }
   if ((t = dict_find(it, MESSAGE_KEY_STAND))) { s_stand = t->value->int32; persist_write_int(PK_STAND, s_stand); }
   for (int n = 0; n < 2; n++) {                    // day and night: colours and options
     bool neu = false;
     if ((t = dict_find(it, n ? MESSAGE_KEY_FARBEN_N : MESSAGE_KEY_FARBEN)) && t->length == F_ANZAHL) {
-      for (int i = 0; i < F_ANZAHL; i++) s_th[n].farbe[i] = t->value->data[i] & 0x3F;
+      for (int i = 0; i < F_ANZAHL; i++) s_th[n].farbe[i] = t->value->data[i] & (ERBEN | 0x3F);   // bit 6: inherit (0.28.0)
       neu = true;
     }
     if ((t = dict_find(it, n ? MESSAGE_KEY_OPTIONEN_N : MESSAGE_KEY_OPTIONEN))) { optionen_setzen(&s_th[n], t->value->int32); neu = true; }
@@ -804,11 +1038,29 @@ static void empfangen(DictionaryIterator *it, void *ctx) {
       s_th[n].saeulen = v & 1; s_th[n].regen_hinter = v >> 1 & 1;
       s_th[n].s_tag = v >> 2 & 1; s_th[n].s_daem = v >> 3 & 1; s_th[n].s_nacht = v >> 4 & 1;
       s_th[n].streifen = v >> 5 & 1; s_th[n].streifen_voll = v >> 6 & 1;
+      s_th[n].achse = (v >> 7 & 3) < 3 ? v >> 7 & 3 : 0;   // 0.28.0 bit 7: 00–24 h; 0.29.0 value 2: 16–08 h
       neu = true;
+    }
+    if ((t = dict_find(it, n ? MESSAGE_KEY_TEXTE_N : MESSAGE_KEY_TEXTE))) {   // 0.28.0: per block length, then the character codes
+      memset(s_text[n], 0, sizeof s_text[n]);
+      for (int k = 0, p = 0; k < 8 && p < (int)t->length; k++) {
+        const int len = t->value->data[p++];
+        for (int i = 0; i < len && p < (int)t->length; i++, p++) if (i < TEXT_MAX) s_text[n][k][i] = t->value->data[p];
+      }
+      persist_write_data(n ? PK_TEXT_NACHT : PK_TEXT_TAG, s_text[n], sizeof s_text[n]);
     }
     if (neu) persist_write_data(n ? PK_THEMA_NACHT : PK_THEMA_TAG, &s_th[n], sizeof(Thema));
   }
   if ((t = dict_find(it, MESSAGE_KEY_NACHTMODUS))) { s_nachtmodus = t->value->int32 != 0; persist_write_int(PK_NACHTMODUS, s_nachtmodus); }
+  if ((t = dict_find(it, MESSAGE_KEY_GLOBAL))) {   // 0.30.0: time format, weekday language — the same day and night
+    s_zeitformat = (t->value->int32 & 3) < 3 ? t->value->int32 & 3 : 0; s_deutsch = t->value->int32 >> 2 & 1;
+    persist_write_int(PK_GLOBAL, t->value->int32);
+  }
+  if ((t = dict_find(it, MESSAGE_KEY_TEST)) && t->value->int32) {   // 0.29.0: by day the night theme, at night the day for TEST_S
+    s_test_bis = time(NULL) + TEST_S;
+    if (s_test_t) app_timer_cancel(s_test_t);
+    s_test_t = app_timer_register(TEST_S * 1000 + 200, test_ende, NULL);
+  }
   layer_mark_dirty(s_layer);
 }
 
@@ -817,15 +1069,19 @@ static void laden(void) {
     thema_std(&s_th[n]);
     const int k = n ? PK_THEMA_NACHT : PK_THEMA_TAG;
     if (persist_exists(k) && persist_read_data(k, &s_th[n], sizeof(Thema)) != (int)sizeof(Thema)) thema_std(&s_th[n]);
+    const int kt = n ? PK_TEXT_NACHT : PK_TEXT_TAG;
+    if (persist_exists(kt) && persist_read_data(kt, s_text[n], sizeof s_text[n]) != (int)sizeof s_text[n]) memset(s_text[n], 0, sizeof s_text[n]);
   }
   if (persist_exists(PK_NACHTMODUS)) s_nachtmodus = persist_read_int(PK_NACHTMODUS) != 0;
+  if (persist_exists(PK_GLOBAL)) { const int32_t v = persist_read_int(PK_GLOBAL); s_zeitformat = (v & 3) < 3 ? v & 3 : 0; s_deutsch = v >> 2 & 1; }
   for (int k = 5; k < 20; k++) persist_delete(k);  // single keys until 0.10.0
   if (!persist_exists(PK_FORMAT) || persist_read_int(PK_FORMAT) != FORMAT) {
-    persist_delete(PK_WETTER); persist_delete(PK_TAG); persist_delete(PK_STAND);
+    persist_delete(PK_WETTER); persist_delete(PK_WETTER2); persist_delete(PK_TAG); persist_delete(PK_STAND);
     persist_write_int(PK_FORMAT, FORMAT);
     return;
   }
   if (persist_exists(PK_WETTER) && persist_read_data(PK_WETTER, s_wetter, WETTER_LEN) == WETTER_LEN) s_hat_wetter = true;
+  if (persist_exists(PK_WETTER2) && persist_read_data(PK_WETTER2, s_w2, W2_LEN) == W2_LEN) s_hat_w2 = true;
   if (persist_exists(PK_TAG)) s_tag = persist_read_int(PK_TAG);
   if (persist_exists(PK_STAND)) s_stand = persist_read_int(PK_STAND);
 }
@@ -852,12 +1108,14 @@ static void init(void) {
   window_set_window_handlers(s_window, (WindowHandlers){ .load = fenster_laden, .unload = fenster_entladen });
   window_stack_push(s_window, false);
   app_message_register_inbox_received(empfangen);
-  app_message_open(384, 64);                        // weather 184 bytes + TAG + STAND (0.22.0; 256 before)
+  app_message_open(1024, 64);                       // all settings with both texts at the start (0.28.0); weather 236 + 144 bytes + TAG + STAND
   tick_timer_service_subscribe(MINUTE_UNIT, tick);
   connection_service_subscribe((ConnectionHandlers){ .pebble_app_connection_handler = handy_verbindung });
+  battery_state_service_subscribe(akku_neu);
 }
 
 static void deinit(void) {
+  battery_state_service_unsubscribe();
   connection_service_unsubscribe();
   tick_timer_service_unsubscribe();
   window_destroy(s_window);

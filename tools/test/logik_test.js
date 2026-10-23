@@ -6,7 +6,7 @@ var datei = path.resolve(__dirname, 'open-meteo-frankfurt-2026-10-12.json');
 var j = JSON.parse(fs.readFileSync(datei, 'utf8'));
 var p = logik.wetterPaket(j, Date.parse('2026-10-12T08:00:00Z'));
 assert.strictEqual(p.tag, 20261012);
-assert.strictEqual(p.bytes.length, 184, '88 + hourly values (0.22.0)');
+assert.strictEqual(p.bytes.length, 236, '88 + hourly values (0.22.0) + night hours (0.28.0) + evening before (0.29.0)');
 var h = j.hourly, i14 = h.time.indexOf('2026-10-12T14:00');
 var i15 = h.time.indexOf('2026-10-12T15:00');
 assert.strictEqual(p.bytes[10], Math.round(h.precipitation[i15] * 10), 'rain 14–15 h = value at 15 h');
@@ -43,7 +43,7 @@ s.hourly.temperature_2m = s.hourly.time.map(function (t, i) { return i % 30 - 8.
 s.hourly.weather_code = s.hourly.time.map(function (t, i) { return CODES[i % CODES.length]; });
 s.hourly.wind_gusts_10m = s.hourly.time.map(function (t, i) { return i * 3.1; });
 var ps = logik.wetterPaket(s, Date.parse('2026-10-12T08:00:00Z')).bytes, i3 = h.time.indexOf('2026-10-12T03:00'), j23 = h.time.indexOf('2026-10-13T23:00');
-assert.strictEqual(ps.length, 184);
+assert.strictEqual(ps.length, 236);
 assert.strictEqual((ps[88 + 3] << 24) >> 24, Math.round(i3 % 30 - 8.4), 'temperature 03 h today');
 assert.strictEqual((ps[88 + 48 + 23] << 24) >> 24, Math.round(j23 % 30 - 8.4), 'temperature 23 h tomorrow');
 assert.strictEqual(ps[88 + 24 + 3] & 7, logik.wmoArt(CODES[i3 % CODES.length]), 'kind 03 h');
@@ -52,6 +52,20 @@ assert.deepStrictEqual([0, 1, 2, 3, 45, 48, 51, 61, 67, 80, 71, 86, 95, 99].map(
 assert.ok(ps.every(function (b) { return b >= 0 && b <= 255; }), 'bytes only');
 assert.ok(logik.wetterUrl(50.1, 8.68).indexOf('temperature_2m,weather_code,wind_gusts_10m') > 0);
 console.log('hours ok: temperature, kind, gusts per hour');
+// night hours for the 24-hour axis (since 0.28.0): rain 00–04 and 21–24 h (value of the following hour), pressure at 00–03 and 21–23 h
+var n = JSON.parse(JSON.stringify(j));
+n.hourly.precipitation = n.hourly.time.map(function (t, i) { return (i % 7) / 10; });
+n.hourly.pressure_msl = n.hourly.time.map(function (t, i) { return 1000 + i / 2; });
+var pn = logik.wetterPaket(n, Date.parse('2026-10-12T08:00:00Z')).bytes, t0 = h.time.indexOf('2026-10-12T00:00');
+assert.deepStrictEqual(logik.NACHTSTUNDEN, [0, 1, 2, 3, 21, 22, 23]);
+logik.NACHTSTUNDEN.forEach(function (st, k) {
+  assert.strictEqual(pn[184 + k], ((t0 + st + 1) % 7), 'rain ' + st + ' h today');
+  assert.strictEqual(pn[184 + 7 + k], Math.round((1000 + (t0 + st) / 2) * 2 - 1900), 'pressure ' + st + ' h today');
+  assert.strictEqual(pn[184 + 14 + 7 + k], Math.round((1000 + (t0 + 24 + st) / 2) * 2 - 1900), 'pressure ' + st + ' h tomorrow');
+});
+assert.strictEqual(pn[184 + 14 + 6], 255, 'rain 23–24 h tomorrow: the day after is not in the response');
+assert.strictEqual(pn[10], (h.time.indexOf('2026-10-12T15:00') % 7), 'day part unchanged: rain 14–15 h');
+console.log('night hours ok: rain', pn.slice(184, 191).join(','), '| pressure', pn.slice(191, 198).join(','));
 // below zero as int8
 var k = JSON.parse(JSON.stringify(j)); k.daily.temperature_2m_min[1] = -6.4;
 assert.strictEqual((logik.wetterPaket(k, Date.parse('2026-10-12T08:00:00Z')).bytes[34] << 24) >> 24, -6);
@@ -59,10 +73,19 @@ assert.ok(logik.wetterUrl(50.1, 8.68).indexOf('latitude=50.10&longitude=8.68') >
 console.log('logic ok: rain', p.bytes.slice(0, 17).join(','), '| pressure', p.bytes.slice(17, 34).join(','), '| T', p.bytes[34], p.bytes[35]);
 // colours: default, lower case, invalid values (no Pebble colour) → default
 var std = logik.farbenBytes(null);
-assert.strictEqual(std.length, 43);
-assert.deepStrictEqual(std, [0x00, 0x11, 0x1B, 0x37, 0x3F, 0x3F, 0x00, 0x22, 0x12, 0x01, 0x01, 0x01, 0x01, 0x3F, 0x3F, 0x3F, 0x3F,
-                             0x00, 0x21, 0x34, 0x24, 0x3F, 0x3F, 0x3F, 0x01, 0x01, 0x3F, 0x3F, 0x01, 0x01, 0x00, 0x3F, 0x22, 0x37,
-                             0x00, 0x22, 0x37, 0x12, 0x00, 0x3F, 0x22, 0x38, 0x34]);
+assert.strictEqual(std.length, 67);
+assert.deepStrictEqual(std, [0x00, 0x11, 0x1B, 0x37, 0x3F, 64, 0x00, 0x22, 0x12, 0x01, 0x01, 0x01, 0x01, 64, 64, 64, 64,
+                             0x00, 0x21, 0x34, 0x24, 0x3F, 64, 64, 0x01, 0x01, 64, 64, 0x01, 0x01, 0x00, 0x3F, 0x22, 0x37,
+                             0x00, 0x22, 0x37, 0x12, 0x00, 0x3F, 0x22, 0x38, 0x34,
+                             64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,    // 0.28.0: 3D edge per block, symbol families: inherit
+                             0x3F, 64, 64, 64, 64, 64, 64, 64, 64]);   // 0.30.0: main colour white; time and block digits inherit it; 3D per family
+// inherit (0.28.0): only the new colours may be empty; the watch gets 64
+var fe = logik.farbenPruefen({ kante_2l: '0055ff', sf_mond: '', grund: '', kante: '' });
+assert.strictEqual(fe.kante_2l, '0055FF'); assert.strictEqual(fe.sf_mond, ''); assert.strictEqual(fe.grund, '000000', 'background never empty');
+assert.strictEqual(fe.kante, 'AA00AA', 'the common 3D edge never empty');
+var fb = logik.farbenBytes(fe); assert.strictEqual(fb[43 + 2], 0x07, 'edge row 2 left'); assert.strictEqual(fb[43 + 9 + 4], 64, 'moon inherits');
+var nf = logik.nachtPruefen({ an: true, farben: { kante_2l: '', sf_pfeil: 'FFFF00', grund: '' }, optionen: {} });
+assert.deepStrictEqual(nf.farben, { kante_2l: '', sf_pfeil: 'FFFF00' }, 'night may set an inherited colour, not the background');
 var f = logik.farbenPruefen({ balken: '0000aa', regen: '123456', grund: 'FFFFFF' });
 assert.strictEqual(f.balken, '0000AA'); assert.strictEqual(f.regen, '55AAFF'); assert.strictEqual(f.grund, 'FFFFFF');
 console.log('colours ok:', std.map(function (b) { return b.toString(16); }).join(' '));
@@ -84,7 +107,7 @@ assert.strictEqual(ps.length, 1); assert.strictEqual(ps[0].name, 'Neon');
 assert.strictEqual(logik.optionenZahl(logik.optionenPruefen({ schwelle: 4 })) >> 19 & 7, 4, 'threshold 1.0');
 assert.strictEqual(logik.optionenPruefen({ inhalt_2l: 42 }).inhalt_2l, 1, 'invalid block content → default');
 // second symbol (0.22.0): cell contents only, names of the fixed symbols as in the generator
-[[13, 13], [64, 64], [87, 87], [11, 11], [4, 0], [10, 0], [12, 0], [18, 0], [41, 0], [88, 0], [1.5, 0], ['13', 0]].forEach(function (f) {
+[[13, 13], [64, 64], [87, 87], [11, 11], [4, 0], [10, 0], [12, 0], [18, 0], [41, 0], [88, 88], [97, 97], [98, 0], [30, 30], [31, 31], [29, 0], [20, 0], [1.5, 0], ['13', 0]].forEach(function (f) {
   assert.strictEqual(logik.optionenPruefen({ zweit_1l: f[0] }).zweit_1l, f[1], 'second ' + f[0]);
 });
 assert.deepStrictEqual(logik.INHALTE.slice(logik.W_FEST), require('../../src/pkjs/symbole').namen, 'names as in tools/symbole.py');
@@ -98,7 +121,7 @@ assert.strictEqual(logik.optionenPruefen({ staerke_s: 25 }).staerke_s, 2);
 assert.strictEqual(logik.anUhr({ farben: {}, optionen: logik.optionenPruefen(null) }, logik.nachtPruefen({ an: true, optionen: { sonne_tag: false } })).SCHALTER_N, 89, 'night without the day area');
 assert.strictEqual(logik.nachtPruefen({ an: true, optionen: { zweit_1l: 72 } }).optionen.zweit_1l, 72, 'night: second symbol');
 assert.deepStrictEqual(logik.anUhr({ farben: {}, optionen: logik.optionenPruefen({ zweit_5r: 76 }) }, logik.nachtPruefen(null)).ZELLEN, [0, 0, 0, 0, 0, 0, 0, 76]);
-[[17, 17], [18, 18], [19, 1], [63, 1], [64, 64], [87, 87], [88, 1], [-1, 1], [2.5, 1]].forEach(function (f) {   // 18 pressure curve, 64–87 fixed (0.23.0)
+[[17, 17], [18, 18], [19, 19], [20, 20], [31, 31], [32, 1], [63, 1], [64, 64], [87, 87], [97, 97], [98, 1], [-1, 1], [2.5, 1]].forEach(function (f) {   // 18 pressure curve, 64–87 fixed (0.23.0), 19 free text (0.28.0), 20–31 and 88–97 (0.30.0)
   assert.strictEqual(logik.optionenPruefen({ inhalt_2l: f[0] }).inhalt_2l, f[1], 'content ' + f[0]);
 });
 assert.strictEqual(logik.optionenPruefen({ schwelle: 9 }).schwelle, 1, 'invalid threshold → 0.2');
@@ -106,19 +129,112 @@ assert.strictEqual(logik.optionenPruefen({ staerke_v: 25 }).staerke_v, 2, 'above
 assert.strictEqual(logik.optionenPruefen(null).regen_rel, false, 'default: fixed scale');
 assert.strictEqual(logik.optionenPruefen({ regenlage: 1 }).regen_rel, true, '"bottom" from 0.13–0.17 stays relative');
 assert.strictEqual(logik.optionenZahl(logik.optionenPruefen({ regen_rel: true })) >> 25 & 1, 1, 'bit 25');
+// 24-hour axis and free text (0.28.0): one character per digit cell, 4 at most, only characters the watch has
+var o28 = logik.optionenPruefen({ achse24: true, inhalt_1l: 19, text_1l: 'Hallo', inhalt_5r: 19, text_5r: 'ab', text_2l: 'nicht gezeigt' });
+assert.strictEqual(o28.achse, 1, 'achse24 from 0.28.0 becomes axis 1'); assert.strictEqual(logik.optionenPruefen(null).achse, 0, 'axis 04–20 h by default');
+assert.ok(!('achse24' in o28), 'old key is not kept');
+assert.strictEqual(logik.schalterZahl(o28) >> 7 & 1, 1, 'SCHALTER bit 7'); assert.strictEqual(logik.schalterZahl(logik.optionenPruefen(null)) >> 7 & 1, 0);
+assert.strictEqual(o28.text_1l, 'Hall', 'stored as typed, 4 at most'); assert.strictEqual(logik.optionenPruefen({ text_1l: 5 }).text_1l, '', 'only strings');
+assert.strictEqual(logik.TEXT_MAX, 4);
+assert.deepStrictEqual(logik.textCodes('wélt'), [87, 69, 76, 84], 'upper case, é → E');
+assert.deepStrictEqual(logik.textCodes('Grüße'), [71, 82, 98, 83], 'ü = 98, ß → SS, cut at 4');
+assert.deepStrictEqual(logik.textCodes('#a~b'), [65, 66], 'characters without a letter on the watch are left out');
+assert.deepStrictEqual(logik.textCodes('-1°♥'), [45, 49, 99, 100], 'minus, digit, degree, heart');
+var sc = require('../../src/pkjs/schrift');
+'ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ!?.,:\'+/=°♥()%_'.split('').forEach(function (ch) {
+  assert.ok(sc.glyphen[logik.textCodes(ch)[0]], 'letter for ' + ch);
+});
+var tb = logik.texteBytes(o28);
+assert.deepStrictEqual(tb, [4, 72, 65, 76, 76, 0, 0, 0, 0, 0, 0, 2, 65, 66], 'per block length + codes, only blocks with free text');
+var u28 = logik.anUhr({ farben: logik.farbenPruefen(null), optionen: o28 }, logik.nachtPruefen({ an: true, optionen: { inhalt_1l: 0 }, farben: {} }));
+assert.deepStrictEqual(u28.TEXTE, tb); assert.strictEqual(u28.TEXTE_N[0], 0, 'night without the text in block 0');
+assert.strictEqual(u28.SCHALTER_N >> 7 & 1, 1, 'night takes the axis from the day');
+var n28 = logik.nachtPruefen({ an: true, optionen: { text_1l: 'Mond', achse24: false, text_2l: 7 }, farben: {} });
+assert.deepStrictEqual(n28.optionen, { text_1l: 'Mond', achse: 0 }, 'night: text and axis of its own (achse24 taken over)');
+// night axis 16–08 h (0.29.0): SCHALTER bits 7–8 = 2, invalid values fall back to 04–20 h
+var o29 = logik.optionenPruefen({ achse: 2 });
+assert.strictEqual(o29.achse, 2); assert.strictEqual(logik.schalterZahl(o29) >> 7 & 3, 2, 'SCHALTER bits 7–8');
+assert.strictEqual(logik.optionenPruefen({ achse: 3 }).achse, 0); assert.strictEqual(logik.optionenPruefen({ achse: 1.5 }).achse, 1, 'floored like other numbers');
+assert.strictEqual(logik.nachtPruefen({ an: true, optionen: { achse: 2 }, farben: {} }).optionen.achse, 2, 'night axis on its own');
+var u29 = logik.anUhr({ farben: logik.farbenPruefen(null), optionen: logik.optionenPruefen(null) }, logik.nachtPruefen({ an: true, optionen: { achse: 2 }, farben: {} }));
+assert.strictEqual(u29.SCHALTER >> 7 & 3, 0); assert.strictEqual(u29.SCHALTER_N >> 7 & 3, 2, 'day 04–20 h, night 16–08 h');
+assert.ok(/past_days=1/.test(logik.wetterUrl(50.1, 8.7)), 'request with yesterday');
+// evening before (0.29.0): on 13 Oct the 12th from 16 h is in the response — rain 16–17 h = value at 17 h, 23–24 h = 00 h of the 13th
+var pv = logik.wetterPaket(j, Date.parse('2026-10-13T08:00:00Z')).bytes, V = 212;
+var k16 = h.time.indexOf('2026-10-12T16:00'), k17 = h.time.indexOf('2026-10-12T17:00'), k23 = h.time.indexOf('2026-10-12T23:00'), m0 = h.time.indexOf('2026-10-13T00:00');
+assert.strictEqual(pv[V], Math.round(h.precipitation[k17] * 10), 'rain 16–17 h yesterday');
+assert.strictEqual(pv[V + 7], Math.round(h.precipitation[m0] * 10), 'rain 23–24 h yesterday = value at midnight');
+assert.strictEqual(pv[V + 8], Math.round(h.pressure_msl[k16] * 2 - 1900), 'pressure 16 h yesterday');
+assert.strictEqual(pv[V + 15], Math.round(h.pressure_msl[k23] * 2 - 1900), 'pressure 23 h yesterday');
+assert.strictEqual((pv[V + 16] << 24) >> 24, Math.round(h.temperature_2m[k16]), 'temperature 16 h yesterday');
+var pf = logik.wetterPaket(j, Date.parse('2026-10-11T08:00:00Z')).bytes;   // the response starts on the 11th: no day before
+assert.strictEqual(pf[V], 255, 'without the day before in the response: missing'); assert.strictEqual(pf[V + 8], 255); assert.strictEqual(pf[V + 16], 128);
+console.log('0.29.0 ok: night axis, evening before ' + pv.slice(V, V + 8).join(','));
+console.log('0.28.0 ok: axis bit, text codes', tb.join(','));
 console.log('night ok: options 160194816, blocks, threshold, night theme, presets');
 // stock presets (since 0.20.0): six (Retro since 0.27.0), complete, all with valid packets for the watch; since 0.21.0 night looks as presets of their own
 var vl = logik.vorlagen();
-assert.deepStrictEqual(vl.map(function (p) { return p.name; }), ['Neon', 'Neon Night', 'Paper', 'Paper Night', 'Sundial', 'Terminal', 'Minimal', 'Retro', 'Retro Night']);
+assert.deepStrictEqual(vl.map(function (p) { return p.name; }), ['Neon', 'Neon Night', 'Paper', 'Paper Night', 'Sundial', 'Terminal', 'Minimal', 'Minimal Night',
+  'Retro', 'Retro Night', 'Dusk', 'Dusk Night', 'Signal', 'Signal Night']);   // 0.30.0: Minimal with a night look, Dusk and Signal with one
+assert.deepStrictEqual(logik.vorlagenBasis().map(function (p) { return p.name; }), vl.filter(function (p) { return !/ Night$/.test(p.name); }).map(function (p) { return p.name; }));
+vl.forEach(function (p) {                                 // stock presets are valid as they are: nothing falls back to the default unseen
+  var u = logik.anUhr(p.tag, p.nacht);
+  assert.ok(u.BLOECKE.every(function (b) { return logik.inhaltGueltig(b); }) && u.ZELLEN.every(function (b) { return logik.istZelle(b); }), p.name);
+});
+logik.vorlagenBasis().slice(6).forEach(function (p) { assert.strictEqual(p.nacht.an, true, p.name + ' with a night look'); });
 vl.forEach(function (p) {
   var u = logik.anUhr(p.tag, p.nacht);
-  assert.strictEqual(u.FARBEN.length, 43, p.name); assert.strictEqual(u.BLOECKE.length, 8, p.name); assert.strictEqual(u.LINIEN.length, 4, p.name);
+  assert.strictEqual(u.FARBEN.length, 67, p.name); assert.strictEqual(u.BLOECKE.length, 8, p.name); assert.strictEqual(u.LINIEN.length, 4, p.name);
 });
 assert.strictEqual(vl[2].tag.farben.grund, 'FFFFFF'); assert.strictEqual(vl[2].nacht.farben.grund, '000000', 'Paper inverted at night');
 assert.deepStrictEqual(vl[3].tag, logik.nachtThema(vl[2].tag, vl[2].nacht), 'Paper Night = night look of Paper');
 assert.strictEqual(vl[3].nacht.an, false); assert.strictEqual(vl[1].tag.farben.ziffer, 'AA55AA', 'Neon Night dimmed');
 assert.strictEqual(vl[5].tag.optionen.inhalt_1l, 4, 'Terminal: high at the top left');
-var re = logik.anUhr(vl[7].tag, vl[7].nacht);   // Retro (0.27.0, Seb's preset): sun, cross 10 px, columns off; night white, no rain, no sun
+var re = logik.anUhr(vl[8].tag, vl[8].nacht);   // Retro (0.27.0, Seb's preset): sun, cross 10 px, columns off; night white, no rain, no sun
 assert.deepStrictEqual([re.OPTIONEN >> 16 & 1, re.LINIEN[0], re.LINIEN[1], re.SCHALTER & 1, re.NACHTMODUS], [1, 10, 10, 0, 1]);
 assert.deepStrictEqual([re.OPTIONEN_N >> 16 & 1, re.OPTIONEN_N >> 11 & 3, re.LINIEN_N[1], re.FARBEN_N[5]], [0, 2, 5, 0x3F], 'Retro night');
 console.log('presets ok: ' + vl.length);
+
+// ---------- 0.30.0 ----------
+// second packet: rain chance (hour h to h+1 = value at h+1), UV and wind at h; missing fields = 255
+var w2 = JSON.parse(JSON.stringify(j));
+w2.hourly.precipitation_probability = w2.hourly.time.map(function (t, i) { return i % 101; });
+w2.hourly.uv_index = w2.hourly.time.map(function (t, i) { return (i % 9) * 0.8; });
+w2.hourly.wind_speed_10m = w2.hourly.time.map(function (t, i) { return i * 1.7; });
+var q = logik.wetter2Paket(w2, Date.parse('2026-10-12T08:00:00Z')), z14 = h.time.indexOf('2026-10-12T14:00'), m23 = h.time.indexOf('2026-10-13T23:00');
+assert.strictEqual(q.length, 144, '2 days × 72');
+assert.strictEqual(q[14], (z14 + 1) % 101, 'rain chance 14–15 h = value at 15 h');
+assert.strictEqual(q[24 + 14], Math.round((z14 % 9) * 0.8), 'UV 14 h'); assert.strictEqual(q[48 + 14], Math.round(z14 * 1.7), 'wind 14 h');
+assert.strictEqual(q[72 + 48 + 23], Math.min(254, Math.round(m23 * 1.7)), 'wind 23 h tomorrow');
+var qr = logik.wetter2Paket(j, Date.parse('2026-10-12T08:00:00Z'));   // the saved response has rain chance and wind, no UV
+assert.strictEqual(qr[14], h.precipitation_probability[z14 + 1], 'real rain chance 14–15 h'); assert.strictEqual(qr[48 + 14], Math.round(h.wind_speed_10m[z14]), 'real wind 14 h');
+assert.ok(qr.slice(24, 48).every(function (b) { return b === 255; }), 'UV missing in the response = 255');
+console.log('second packet real: rain chance', qr.slice(0, 24).join(','), '| wind', qr.slice(48, 72).join(','));
+assert.ok(/precipitation_probability,uv_index,wind_speed_10m/.test(logik.wetterUrl(50.1, 8.7)), 'request with the new fields');
+// main colour: colours from before 0.30.0 keep their look, equal digit colours inherit; with 'haupt' nothing is converted
+var alt = logik.farbenPruefen({ ziffer: 'FF0000', z_tag: 'ff0000', z_min: '0055FF', grund: 'FFFFFF' });
+assert.deepStrictEqual([alt.haupt, alt.ziffer, alt.z_tag, alt.z_min, alt.z_auf, alt.grund], ['FF0000', '', '', '0055FF', 'FFFFFF', 'FFFFFF'], 'migration');
+var neu = logik.farbenPruefen({ haupt: '00FF00', ziffer: '00FF00', z_tag: '' });
+assert.deepStrictEqual([neu.haupt, neu.ziffer, neu.z_tag, neu.z_min], ['00FF00', '00FF00', '', ''], 'no migration with a main colour');
+assert.deepStrictEqual(logik.farbenPruefen({}).haupt, 'FFFFFF'); assert.strictEqual(logik.farbenPruefen({ sk_mond: '', sf_freude: 'FF0000' }).sf_freude, 'FF0000');
+var vr = logik.vorlagen()[8].tag.farben;                // Retro: red main colour, blue digits stay, rows 1/5 stay white
+assert.deepStrictEqual([vr.haupt, vr.ziffer, vr.z_tag, vr.z_monat, vr.z_auf], ['FF0000', '', '', '0055FF', 'FFFFFF'], 'Retro after the migration');
+// compact presets: always with the main colour, back to the same full preset
+var voll = logik.presetsPruefen([{ name: 'X', tag: { farben: logik.farbenPruefen({ haupt: 'FFFFFF', grund: '000055' }), optionen: logik.optionenPruefen({ zeile1: true }) }, nacht: logik.nachtPruefen(null) }]);
+var kp = logik.kompaktListe(voll);
+assert.deepStrictEqual(kp[0].tag, { farben: { haupt: 'FFFFFF', grund: '000055' }, optionen: { zeile1: true } }, 'only differences plus the main colour');
+assert.deepStrictEqual(logik.presetsPruefen(kp), voll, 'compact → full');
+assert.deepStrictEqual(logik.presetsPruefen(logik.kompaktListe(logik.vorlagenBasis()), Infinity), logik.vorlagenBasis(), 'stock presets survive');
+assert.strictEqual(logik.presetsPruefen(logik.vorlagen().concat(logik.vorlagen())).length, 20, 'own presets stay at 20');
+assert.ok(JSON.stringify(logik.kompaktListe(logik.vorlagenBasis())).length < JSON.stringify(logik.vorlagenBasis()).length / 3, 'a third at most');
+// Base64 page: UTF-8 survives
+var html = '<p>Grüße ♥ “x” {"a": 1}</p>'.repeat(5), url = logik.seitenUrl(html);
+assert.ok(url.indexOf('data:text/html;charset=utf-8;base64,') === 0); assert.strictEqual(Buffer.from(url.split(',')[1], 'base64').toString('utf8'), html);
+['', 'a', 'ab', 'abc', 'abcd'].forEach(function (t) { assert.strictEqual(Buffer.from(logik.seitenUrl(t).split(',')[1], 'base64').toString(), t, 'padding ' + t.length); });
+// GLOBAL: time format and weekday language
+assert.strictEqual(logik.anUhr(tag, n).GLOBAL, 0, 'default: like the watch, English');
+assert.strictEqual(logik.anUhr(tag, n, { zeitformat: 2, sprache: 'de' }).GLOBAL, 6); assert.strictEqual(logik.anUhr(tag, n, { zeitformat: 1, sprache: 'en' }).GLOBAL, 1);
+assert.deepStrictEqual(logik.globalPruefen({ zeitformat: 7 }), { zeitformat: 0 });
+assert.deepStrictEqual([30, 31, 29, 97].map(logik.istZelle), [true, true, false, true], 'battery and phone are cells, numbers are not');
+assert.deepStrictEqual(logik.INHALTE.slice(20, 32), ['Weekday', 'Battery %', 'Steps', 'Heart rate', 'Rain chance now', 'Rain chance 12 h', 'UV index now', 'UV index max', 'Wind now', 'Gusts now', 'Battery low', 'Phone disconnected']);
+console.log('0.30.0 ok: second packet, main colour, compact presets, Base64 page, GLOBAL');
