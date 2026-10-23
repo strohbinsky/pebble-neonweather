@@ -20,7 +20,7 @@ assert.strictEqual(d0.OPTIONEN >> 11 & 3, 1, 'rain at the bottom taken over');
 assert.strictEqual(d0.OPTIONEN >> 25 & 1, 1, 'whoever had bottom stays relative');
 assert.strictEqual(d0.OPTIONEN >> 29 & 3, 3, 'rows 1 and 5 from the sun rows');
 assert.deepStrictEqual(d0.BLOECKE, [5, 6, 1, 2, 3, 4, 7, 8], 'default blocks');
-assert.deepStrictEqual(d0.LINIEN, [4, 1, 0, 2], 'width from 0.14.0 taken over (index 3 = 4 px), no frame, sun stripes 2 px');
+assert.deepStrictEqual(d0.LINIEN, [4, 1, 0, 2, 2], 'width from 0.14.0 taken over (index 3 = 4 px), no frame, sun stripes 2 px, baro 2 px');
 assert.strictEqual(d0.NACHTMODUS, 0); assert.deepStrictEqual(d0.FARBEN_N, d0.FARBEN, 'night like day');
 
 function seitenHtml() { return Buffer.from(url.replace('data:text/html;charset=utf-8;base64,', ''), 'base64').toString('utf8'); }   // Base64 since 0.30.0
@@ -85,14 +85,14 @@ klick('data-sek', 'regen'); klick('data-rd', 'regenlage:2'); assert.strictEqual(
 klick('data-rd', 'regenlage:1'); assert.ok(zaehle(/data-ch='schwelle:/g) === 5, 'threshold with rain at the bottom');
 klick('data-ch', 'schwelle:4'); klick('data-rd', 'regenlage:0'); assert.strictEqual(zaehle(/data-ch='schwelle:/g), 5, 'threshold stays (relative on)');
 klick('data-sw', 'regen_rel'); assert.strictEqual(zaehle(/data-ch='schwelle:/g), 0, 'threshold only with the relative scale');
-klick('data-sek', 'druck'); klick('data-ch', 'druckvoll:1'); klick('data-ch', 'dicke_d:3'); klick('data-rd', 'drucklage:2');
-klick('data-sek', 'linien'); assert.strictEqual(zaehle(/type='range'/g), 1, 'one slider: horizontal line off, its options hidden');
+klick('data-sek', 'druck'); klick('data-ch', 'druckvoll:1'); assert.strictEqual(zaehle(/data-rg='staerke_d'/g), 1, 'baro width as a slider (0.31.0)'); regel('staerke_d', 15); klick('data-rd', 'drucklage:2');
+klick('data-sek', 'linien'); assert.strictEqual(zaehle(/data-rg='staerke_[vh]'/g), 1, 'one slider: horizontal line off, its options hidden');
 regel('staerke_v', 1); klick('data-sw', 'tageslinie'); regel('staerke_h', 20);
 klick('data-ch', 'voll_v:1'); klick('data-ch', 'voll_h:0'); klick('data-sw', 'regen_vorn');
 klick('data-sw', 'rahmen_z'); klick('data-k', 'rahmen_z'); klick('data-c', 'FF00FF');
 assert.ok(hat("value='20'"), 'slider shows 20');
 a = antwort().tag.optionen;
-assert.deepStrictEqual([a.regenlage, a.regen_rel, a.schwelle, a.druckvoll, a.dicke_d, a.drucklage, a.staerke_v, a.tageslinie, a.staerke_h], [0, false, 4, true, 3, 2, 1, true, 20]);
+assert.deepStrictEqual([a.regenlage, a.regen_rel, a.schwelle, a.druckvoll, a.staerke_d, a.drucklage, a.staerke_v, a.tageslinie, a.staerke_h], [0, false, 4, true, 15, 2, 1, true, 20]);
 // Night: switch on, change a block, reset the block, change a colour
 klick('data-tab', 'nacht'); assert.ok(hat('Night mode is off'), 'hint night mode off');
 klick('data-nm', '1'); assert.ok(!hat('Night mode is off'));
@@ -145,7 +145,7 @@ var d = gesendet[gesendet.length - 1];
 assert.strictEqual(d.BLOECKE[2], 4, 'block row 2 left = high'); assert.strictEqual(d.FARBEN[26], 0x38, 'digits row 1 right FFAA00');
 assert.strictEqual(d.OPTIONEN & 1, 1, 'bar row 1 left'); assert.strictEqual(d.OPTIONEN >> 26 & 1, 1, 'baro continuous');
 assert.strictEqual(d.OPTIONEN >> 27 & 3, 3, 'baro 4 px');
-assert.deepStrictEqual([d.OPTIONEN >> 22 & 1, d.OPTIONEN >> 23 & 1, d.OPTIONEN >> 24 & 1], [1, 0, 0], 'vertical solid, horizontal dashed, no cut-through'); assert.deepStrictEqual(d.LINIEN, [1, 20, 1, 2], 'time lines 1 and 20 px, frame on, sun stripes 2 px');
+assert.deepStrictEqual([d.OPTIONEN >> 22 & 1, d.OPTIONEN >> 23 & 1, d.OPTIONEN >> 24 & 1], [1, 0, 0], 'vertical solid, horizontal dashed, no cut-through'); assert.deepStrictEqual(d.LINIEN, [1, 20, 1, 2, 15], 'time lines 1 and 20 px, frame on, sun stripes 2 px, baro 15 px'); assert.strictEqual(d.OPTIONEN >> 27 & 3, 3, 'baro bits: up to 4 px');
 assert.strictEqual(d.FARBEN[30], 0x33, 'frame colour FF00FF'); assert.strictEqual(d.ZELLEN.length, 8); assert.strictEqual(d.ZELLEN[0], 72, 'second symbol stays stored');
 assert.strictEqual(d.NACHTMODUS, 1); assert.strictEqual(d.FARBEN_N[0], 0x01); assert.deepStrictEqual(d.BLOECKE_N, d.BLOECKE);
 assert.strictEqual(JSON.parse(speicher.presets)[0].name, 'Five rows'); assert.ok(!('balken' in speicher));

@@ -140,7 +140,7 @@ shot("rain-relative", "april", "12:05", o={"regen_rel": True})
 shot("rain-bottom", "april", "12:05", o={"regenlage": 1, "regen_rel": True})
 shot("rain-full-columns", "gale", "17:40", o={"regenvoll": True})
 # Pressure line: continuous at the bottom, thick
-shot("pressure-bottom-line", "gale", "17:40", o={"drucklage": 3, "druckvoll": True, "dicke_d": 3})
+shot("pressure-bottom-line", "gale", "17:40", o={"drucklage": 3, "druckvoll": True, "staerke_d": 8})
 # Time lines: vertical and horizontal as a cross with a shared frame
 shot("lines-cross", "autumn", "10:33", o={"tageslinie": True, "staerke_v": 4, "staerke_h": 4, "voll_v": True, "rahmen_z": True},
      f={"rahmen_z": "000000", "tlinie": "FFFF55", "jetzt": "FFFF55"})

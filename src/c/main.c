@@ -122,7 +122,7 @@ typedef struct {
   uint8_t block[8];                     // content per block (W_…)
   uint8_t zweit[8];                     // 0.22.0: symbol of the right cell when the block shows a symbol or nothing (message ZELLEN)
   uint8_t drucklage, regenlage, schwelle, dicke_v, dicke_h, dicke_d;   // pressure position 0–3, rain position 0 standard 1 bottom 2 off;
-                                        // dicke_v/_h 1–20 px (message LINIEN, since 0.15.0), dicke_d 1–4 px
+                                        // dicke_v/_h 1–20 px (message LINIEN, since 0.15.0), dicke_d 1–20 px (LINIEN byte 4, since 0.31.0; before 1–4 px)
   bool zeitmarke, luftdruck, regenvoll, sonne, tageslinie, verlauf, druckvoll, zeile1, zeile5;
   bool saeulen;                         // 0.24.0: subtle column per hour in the background; off = rain only (message SCHALTER, bit 0)
   bool regen_hinter;                    // 0.25.0: day (since 0.25.1 also twilight) of the sun position in front of columns and rain (SCHALTER, bit 1)
@@ -147,7 +147,7 @@ static AppTimer *s_test_t;
 // Options as one number (message OPTIONEN, 0.14.0): bits 0–8 bars, 9–10 pressure position, 11–12 rain position, 13 time marker,
 // 14 pressure, 15 rain full height, 16 sun position, 17 time-of-day line, 18 gradient, 19–21 threshold "rain at the bottom",
 // 22 vertical time line solid, 23 horizontal solid, 24 rain in front of the vertical line, 25 rain relative,
-// 26 baro continuous, 27–28 baro width −1, 29 row 1, 30 row 5.
+// 26 baro continuous, 27–28 baro width −1 (since 0.31.0 LINIEN byte 4 wins, 1–20 px), 29 row 1, 30 row 5.
 // Default 160194816 = time bar, time marker, pressure, gradient, threshold 0.2 mm/h, horizontal solid, rain in front, baro 2 px
 #define OPTIONEN_STD 160194816
 static const uint8_t SCHWELLE_Z[5] = { 1, 2, 3, 5, 10 };   // tenths of mm/h: 0.1 0.2 0.3 0.5 1.0
@@ -851,16 +851,17 @@ static void zeichnen(Layer *l, GContext *ctx) {
   }
   for (int y = 0; y < 228; y++)                     // day and twilight in front of the rain (0.25.1)
     if (vor_regen(d, y)) himmel_zeile(y, sonne_min(d, 0), sonne_min(d, 1), sonne_min(d, 2), sonne_min(d, 3));
+  const int dm = (A->dicke_d - 1) / 2;              // 0.31.0: baro centred on the pressure value like the time lines (up to 2 px it stays as before)
   for (int i = 0; d && A->luftdruck && !A->druckvoll && i < ax->n; i++) {   // baro dashed; columns do not overlap, order does not matter
     const int b = druck_H(H0 + i);
-    if (b != FEHLT) flaeche(ax->x0 + ax->p * i, druck_y(b), ax->b, A->dicke_d, C_DRUCK);
+    if (b != FEHLT) flaeche(ax->x0 + ax->p * i, druck_y(b) - dm, ax->b, A->dicke_d, C_DRUCK);
   }
   if (d && A->luftdruck && A->druckvoll) {        // baro continuous: line through the hourly values (column centre), horizontal at the edges
     int px = -1, py = 0;
     for (int i = 0; i < ax->n; i++) {
       const int b = druck_H(H0 + i);
       if (b == FEHLT) continue;
-      const int x = ax->x0 + ax->p * i + ax->b / 2, y = druck_y(b);
+      const int x = ax->x0 + ax->p * i + ax->b / 2, y = druck_y(b) - dm;
       linie(px < 0 ? 0 : px, px < 0 ? y : py, x, y, A->dicke_d, C_DRUCK);
       px = x; py = y;
     }
@@ -1023,6 +1024,7 @@ static void empfangen(DictionaryIterator *it, void *ctx) {
       s_th[n].dicke_v = t->value->data[0] < 1 ? 1 : t->value->data[0] > 20 ? 20 : t->value->data[0];
       s_th[n].dicke_h = t->value->data[1] < 1 ? 1 : t->value->data[1] > 20 ? 20 : t->value->data[1];
       if (t->length >= 4) s_th[n].dicke_s = t->value->data[3] < 1 ? 1 : t->value->data[3] > 20 ? 20 : t->value->data[3];
+      if (t->length >= 5) s_th[n].dicke_d = t->value->data[4] < 1 ? 1 : t->value->data[4] > 20 ? 20 : t->value->data[4];   // 0.31.0: baro
       neu = true;
     }
     if ((t = dict_find(it, n ? MESSAGE_KEY_BLOECKE_N : MESSAGE_KEY_BLOECKE)) && t->length == 8) {

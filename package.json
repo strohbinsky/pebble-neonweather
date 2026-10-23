@@ -1,7 +1,7 @@
 {
   "name": "neonweather",
   "author": "Seb & Claude",
-  "version": "0.30.0",
+  "version": "0.31.0",
   "keywords": ["pebble-app"],
   "private": true,
   "dependencies": {},

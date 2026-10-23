@@ -10,7 +10,8 @@
      Since 0.28.0: time axis 0–24 h, free text per block, 3D edge per block and colours of the symbol families (empty = inherit).
      Since 0.30.0: presets arrive as differences from the default (z.std) and the page as Base64; a main digit colour that time, blocks
      and symbol families inherit (colour and 3D edge); section "Digits & symbols"; time axis below the tabs; small preview while
-     scrolling; sample weather and time for the preview; the page keeps its state in the URL fragment (reloads of the web view). -->
+     scrolling; sample weather and time for the preview; the page keeps its state in the URL fragment (reloads of the web view).
+     Since 0.31.0: pressure line width as a slider 1–20 px (staerke_d) like the time lines, centred on the value. -->
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Neonweather</title>
 <style>
@@ -113,7 +114,7 @@ var ZIF = {};                                  // digit colours that inherit the
 // symbol families (0.28.0) with their 3D edge (0.30.0); index = sym_familie() in main.c
 var FAM = [["sf_pfeil", "sk_pfeil"], ["sf_schirm", "sk_schirm"], ["sf_warnung", "sk_warnung"], ["sf_wetter", "sk_wetter"], ["sf_mond", "sk_mond"],
            ["sf_alt", "sk_alt"], ["sf_freude", "sk_freude"]];
-var DICKEN = ["1 px", "2 px", "3 px", "4 px"], SCHWELLEN = ["0.1", "0.2", "0.3", "0.5", "1.0"];
+var SCHWELLEN = ["0.1", "0.2", "0.3", "0.5", "1.0"];
 var REGEN = [["Full height", "columns from the bottom; on the fixed scale 1 mm/h reaches the time bar (umbrella time)"],
              ["Bottom", "a strip below row 4; on the fixed scale half height = 1 mm/h"], ["Off", "no rain columns"]];
 
@@ -154,7 +155,7 @@ var DE = {
   "Pressure line": "Luftdrucklinie", "in the background: line, width, position, color": "im Hintergrund: Linie, Dicke, Lage, Farbe",
   "Pressure arrow and curve live under “Rows & content” as block contents.": "Pfeil und Kurve für den Luftdruck gibt es als Blockinhalt unter „Zeilen und Inhalte“.",
   "Show pressure line": "Luftdrucklinie zeigen", "985 hPa at the bottom, 1040 hPa at the top of the chosen zone": "985 hPa unten, 1040 hPa oben in der gewählten Zone",
-  "Line": "Linie", "dashed": "gestrichelt", "solid": "durchgezogen", "dashed = one dash per hour": "gestrichelt = ein Strich je Stunde", "Thickness": "Dicke", "Width": "Stärke",
+  "Line": "Linie", "dashed": "gestrichelt", "solid": "durchgezogen", "dashed = one dash per hour": "gestrichelt = ein Strich je Stunde", "Width": "Stärke",
   "Top": "Oben", "the whole upper half, behind the date too": "ganze obere Hälfte, auch hinter dem Datum", "Top, narrow": "Oben schmal", "between the edge and the date": "zwischen Rand und Datum",
   "Bottom, narrow": "Unten schmal", "between the temperature and the edge": "zwischen Temperatur und Rand", "the whole lower half, above the rain": "ganze untere Hälfte, über dem Regen",
   "Time lines": "Zeitlinien", "vertical and horizontal": "senkrecht und waagerecht", "Vertical": "Senkrecht", "Horizontal": "Waagerecht",
@@ -369,6 +370,8 @@ function themaSaeubern(t, nurDa) {
     var v = t && t.optionen ? t.optionen[k] : undefined, ok;
     if (k === "achse" && v === undefined && t && t.optionen && typeof t.optionen.achse24 === "boolean") v = t.optionen.achse24 ? 1 : 0;   // code from 0.28.0
     if (k === "achse" && typeof v === "number" && !(v >= 0 && v <= 2 && v % 1 === 0)) v = undefined;
+    if (k === "staerke_d" && v === undefined && t && t.optionen && typeof t.optionen.dicke_d === "number") v = t.optionen.dicke_d + 1;   // code until 0.30.0: index 0–3
+    if (/^staerke_/.test(k) && typeof v === "number" && !(v >= 1 && v <= 20 && v % 1 === 0)) v = undefined;
     ok = typeof v === typeof STD.optionen[k];
     if (ok && /^inhalt_/.test(k)) ok = v % 1 === 0 && typeof IN[v] === "string";
     if (ok && /^zweit_/.test(k)) ok = v % 1 === 0 && typeof IN[v] === "string" && zelle(v);
@@ -440,7 +443,7 @@ var ABSCHNITTE = [
     var h = "<p class='info'>Pressure arrow and curve live under “Rows & content” as block contents.</p>" +
       schalter("luftdruck", "Show pressure line", "985 hPa at the bottom, 1040 hPa at the top of the chosen zone");
     if (!eff("optionen", "luftdruck")) return h;
-    return h + chips("druckvoll", ["dashed", "solid"], "Line", "dashed = one dash per hour") + chips("dicke_d", DICKEN, "Thickness") +
+    return h + chips("druckvoll", ["dashed", "solid"], "Line", "dashed = one dash per hour") + regler("staerke_d", "Width", 1, 20) +
       radios("drucklage", D, "Position") + farbe("druck");
   }],
   ["linien", "Time lines", "vertical and horizontal", function () {
@@ -718,7 +721,7 @@ function vorschau() {
   var SW = [1, 2, 3, 5, 10][o("schwelle")], RMAX = 0;
   var RA = AN8 ? RN : R24.slice(AH), PA = AN8 ? PDN : PD24.slice(AH);   // rain and pressure of the hours on the axis
   for (i = 0; i < AN; i++) { var rv = RA[i]; if (rv * 10 >= SW && rv * 10 > RMAX) RMAX = rv * 10; }
-  var dy = [], dd = o("dicke_d") + 1, RH = [];
+  var dy = [], dd = o("staerke_d"), dm = (dd - 1) >> 1, RH = [];   // 0.31.0: 1–20 px, centred on the value like main.c
   for (i = 0; i < AN; i++) {
     var r = RA[i], sx = AX + AP * i;
     if (o("saeulen")) { x.fillStyle = f("saeule"); x.fillRect(sx, 0, AB, 228); }
@@ -737,11 +740,11 @@ function vorschau() {
     return m >= SO[1] && m < SO[2] ? o("sonne_tag") : o("sonne_daemmerung") && m >= SO[0] && m < SO[3];
   }
   for (i = 0; i < 228; i++) if (tagZeile(i)) himmelZeile(i);
-  if (o("luftdruck") && !o("druckvoll")) for (i = 0; i < AN; i++) { x.fillStyle = f("druck"); x.fillRect(AX + AP * i, dy[i], AB, dd); }
+  if (o("luftdruck") && !o("druckvoll")) for (i = 0; i < AN; i++) { x.fillStyle = f("druck"); x.fillRect(AX + AP * i, dy[i] - dm, AB, dd); }
   if (o("luftdruck") && o("druckvoll")) {
-    x.strokeStyle = f("druck"); x.lineWidth = dd; x.beginPath(); x.moveTo(0, dy[0] + dd / 2);
-    for (i = 0; i < AN; i++) x.lineTo(AX + AP * i + (AB >> 1), dy[i] + dd / 2);
-    x.lineTo(200, dy[AN - 1] + dd / 2); x.stroke();
+    x.strokeStyle = f("druck"); x.lineWidth = dd; x.beginPath(); x.moveTo(0, dy[0] - dm + dd / 2);
+    for (i = 0; i < AN; i++) x.lineTo(AX + AP * i + (AB >> 1), dy[i] - dm + dd / 2);
+    x.lineTo(200, dy[AN - 1] - dm + dd / 2); x.stroke();
   }
   var Y0 = [0, 45, 137, 183], Y1 = [45, 91, 183, 228], TY = [0, 46, 138, 184], ZAN = [o("zeile1"), true, true, o("zeile5")];
   if (o("zeitbalken")) { x.fillStyle = f("balken"); x.fillRect(0, 91, 200, 46); }

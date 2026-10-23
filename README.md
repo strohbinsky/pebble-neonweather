@@ -207,7 +207,7 @@ handy for the night look. Columns, rain, pressure, the time line and the curves 
   <img src="docs/images/sun-stripes.png" width="200" alt="Sun stripes">
 </p>
 
-*Pressure as a thick line at the bottom · two time lines, up to 20 px, with a shared frame · the sun position as background ·
+*Pressure as a solid line at the bottom, 1 to 20 px thick · two time lines, up to 20 px, with a shared frame · the sun position as background ·
 just two stripes at sunrise and sunset.*
 
 The horizontal lines read the day **top to bottom**: midnight at the top, sunrise above sunset — right where the

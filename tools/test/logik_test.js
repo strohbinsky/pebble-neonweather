@@ -116,7 +116,13 @@ assert.deepStrictEqual([logik.anUhr({ farben: {}, optionen: logik.optionenPruefe
 assert.strictEqual(logik.anUhr({ farben: {}, optionen: logik.optionenPruefen({ regen_hinter: true }) }, logik.nachtPruefen(null)).SCHALTER, 95, 'rain behind the day (0.25.0)');
 var so = logik.optionenPruefen({ sonne_tag: false, sonne_daemmerung: false, sonne_nacht: false, sonne_streifen: true, streifen_voll: false, staerke_s: 9 });
 assert.strictEqual(logik.anUhr({ farben: {}, optionen: so }, logik.nachtPruefen(null)).SCHALTER, 1 | 32, 'stripes only, dashed (0.26.0)');
-assert.deepStrictEqual(logik.linienBytes(so), [2, 1, 0, 9], 'stripe width in LINIEN byte 3');
+assert.deepStrictEqual(logik.linienBytes(so), [2, 1, 0, 9, 2], 'stripe width in LINIEN byte 3, baro 2 px');
+// baro width 1–20 px (0.31.0): LINIEN byte 4; the index dicke_d until 0.30.0 is taken over, day and night
+assert.deepStrictEqual([0, 1, 3].map(function (i) { return logik.optionenPruefen({ dicke_d: i }).staerke_d; }), [1, 2, 4], 'old baro index');
+assert.deepStrictEqual([logik.optionenPruefen({ staerke_d: 25 }).staerke_d, logik.optionenPruefen({ staerke_d: 0 }).staerke_d], [2, 2]);
+var bd = logik.anUhr({ farben: {}, optionen: logik.optionenPruefen({ staerke_d: 17 }) }, logik.nachtPruefen({ an: true, optionen: { dicke_d: 0 } }));
+assert.deepStrictEqual([bd.LINIEN[4], bd.OPTIONEN >> 27 & 3, bd.LINIEN_N[4], bd.OPTIONEN_N >> 27 & 3], [17, 3, 1, 0], 'baro 17 px by day, old night 1 px');
+assert.deepStrictEqual(logik.nachtPruefen({ an: true, optionen: { dicke_d: 2 } }).optionen, { staerke_d: 3 }, 'night: old index becomes px');
 assert.strictEqual(logik.optionenPruefen({ staerke_s: 25 }).staerke_s, 2);
 assert.strictEqual(logik.anUhr({ farben: {}, optionen: logik.optionenPruefen(null) }, logik.nachtPruefen({ an: true, optionen: { sonne_tag: false } })).SCHALTER_N, 89, 'night without the day area');
 assert.strictEqual(logik.nachtPruefen({ an: true, optionen: { zweit_1l: 72 } }).optionen.zweit_1l, 72, 'night: second symbol');
@@ -184,7 +190,7 @@ vl.forEach(function (p) {                                 // stock presets are v
 logik.vorlagenBasis().slice(6).forEach(function (p) { assert.strictEqual(p.nacht.an, true, p.name + ' with a night look'); });
 vl.forEach(function (p) {
   var u = logik.anUhr(p.tag, p.nacht);
-  assert.strictEqual(u.FARBEN.length, 67, p.name); assert.strictEqual(u.BLOECKE.length, 8, p.name); assert.strictEqual(u.LINIEN.length, 4, p.name);
+  assert.strictEqual(u.FARBEN.length, 67, p.name); assert.strictEqual(u.BLOECKE.length, 8, p.name); assert.strictEqual(u.LINIEN.length, 5, p.name);
 });
 assert.strictEqual(vl[2].tag.farben.grund, 'FFFFFF'); assert.strictEqual(vl[2].nacht.farben.grund, '000000', 'Paper inverted at night');
 assert.deepStrictEqual(vl[3].tag, logik.nachtThema(vl[2].tag, vl[2].nacht), 'Paper Night = night look of Paper');

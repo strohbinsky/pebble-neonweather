@@ -226,7 +226,7 @@ var BALKEN = [['balken_1l', 1, false], ['balken_1r', 2, false], ['balken_2l', 4,
 var REGENLAGEN = [['Full height', 'columns up to the time bar, 1 mm/h there (umbrella time)'],
                   ['Bottom', 'below the bars: the wettest hour = full height, the rest scales along'], ['Off', 'no rain columns']];
 var OPTIONEN = ['achse', 'saeulen', 'regen_hinter', 'sonne_tag', 'sonne_daemmerung', 'sonne_nacht', 'sonne_streifen', 'streifen_voll', 'staerke_s', 'drucklage', 'regenlage', 'zeitmarke', 'luftdruck', 'regenvoll', 'sonne', 'tageslinie', 'verlauf', 'schwelle',
-                'zeile1', 'zeile5', 'druckvoll', 'staerke_v', 'staerke_h', 'dicke_d', 'voll_v', 'voll_h', 'regen_vorn', 'regen_rel', 'rahmen_z']
+                'zeile1', 'zeile5', 'druckvoll', 'staerke_v', 'staerke_h', 'staerke_d', 'voll_v', 'voll_h', 'regen_vorn', 'regen_rel', 'rahmen_z']
   .concat(BALKEN.map(function (b) { return b[0]; }), BLOECKE.map(function (b) { return b[0]; }), BLOECKE.map(function (b) { return b[5]; }),
           BLOECKE.map(function (b) { return b[7]; }));
 function optionenPruefen(o) {
@@ -256,13 +256,14 @@ function optionenPruefen(o) {
   aus.sonne_tag = an('sonne_tag', true); aus.sonne_daemmerung = an('sonne_daemmerung', true); aus.sonne_nacht = an('sonne_nacht', true);   // 0.26.0
   aus.sonne_streifen = an('sonne_streifen', false); aus.streifen_voll = an('streifen_voll', true);
   aus.staerke_s = o && typeof o.staerke_s === 'number' && o.staerke_s >= 1 && o.staerke_s <= 20 ? Math.floor(o.staerke_s) : 2;
-  aus.dicke_d = zahl('dicke_d', 3, 1);   // baro: index = width − 1
   // time lines in px (1–20) since 0.15.0; the index dicke_v/dicke_h from 0.14.0 is taken over
   function px(k, alt, std) { return o && typeof o[k] === 'number' && o[k] >= 1 && o[k] <= 20 ? Math.floor(o[k]) : zahl(alt, 3, std - 1) + 1; }
   aus.staerke_v = px('staerke_v', 'dicke_v', 2); aus.staerke_h = px('staerke_h', 'dicke_h', 1);
+  aus.staerke_d = px('staerke_d', 'dicke_d', 2);   // baro 1–20 px since 0.31.0; until 0.30.0 dicke_d as index 0–3 (width − 1)
   return aus;
 }
-function linienBytes(o) { return [o.staerke_v, o.staerke_h, o.rahmen_z ? 1 : 0, o.staerke_s || 2]; }   // width vertical, horizontal (px), frame, sun stripes (0.26.0)
+// width vertical, horizontal (px), frame, sun stripes (0.26.0), baro (0.31.0)
+function linienBytes(o) { return [o.staerke_v, o.staerke_h, o.rahmen_z ? 1 : 0, o.staerke_s || 2, o.staerke_d || 2]; }
 function bloeckeBytes(o) { return BLOECKE.map(function (b) { return o[b[0]]; }); }
 // Message SCHALTER: bit 0 columns (0.24.0), 1 rain behind day and twilight (0.25.0), 2–4 areas day, twilight, night,
 // 5 sun stripes, 6 stripes solid (0.26.0), 7–8 time axis: 0 = 04–20 h, 1 = 00–24 h (0.28.0), 2 = 16–08 h (0.29.0). Missing keys = default
@@ -298,12 +299,12 @@ function zellenBytes(o) { return BLOECKE.map(function (b) { return o[b[5]] || 0;
 function balkenBits(o) { var n = 0; BALKEN.forEach(function (b) { if (o[b[0]]) n += b[1]; }); return n; }
 // Options as one number for the watch (0.14.0): bits 0–8 bars, 9–10 pressure position, 11–12 rain position, 13 time marker, 14 pressure,
 // 15 rain full columns, 16 sun position, 17 time-of-day line, 18 gradient, 19–21 threshold, 22/23 vertical/horizontal solid, 24 rain in front of the vertical line, 25 rain relative to the daily maximum,
-// 26 baro continuous, 27–28 baro width, 29 row 1, 30 row 5
+// 26 baro continuous, 27–28 baro width up to 4 px (since 0.31.0 the watch takes LINIEN byte 4), 29 row 1, 30 row 5
 function optionenZahl(o) {
   return balkenBits(o) | o.drucklage << 9 | o.regenlage << 11 | (o.zeitmarke ? 1 << 13 : 0) | (o.luftdruck ? 1 << 14 : 0) |
          (o.regenvoll ? 1 << 15 : 0) | (o.sonne ? 1 << 16 : 0) | (o.tageslinie ? 1 << 17 : 0) | (o.verlauf ? 1 << 18 : 0) |
          o.schwelle << 19 | (o.voll_v ? 1 << 22 : 0) | (o.voll_h ? 1 << 23 : 0) | (o.regen_vorn ? 1 << 24 : 0) | (o.regen_rel ? 1 << 25 : 0) |
-         (o.druckvoll ? 1 << 26 : 0) | o.dicke_d << 27 |
+         (o.druckvoll ? 1 << 26 : 0) | (Math.min(o.staerke_d || 2, 4) - 1) << 27 |
          (o.zeile1 ? 1 << 29 : 0) | (o.zeile5 ? 1 << 30 : 0);
 }
 
@@ -313,6 +314,9 @@ function nachtPruefen(n) {
   var f = n && n.farben || {}, o = n && n.optionen || {}, test;
   if (typeof o.achse24 === 'boolean' && o.achse === undefined) {   // night axis of its own until 0.28.0 as achse24
     o = JSON.parse(JSON.stringify(o)); o.achse = o.achse24 ? 1 : 0;
+  }
+  if (typeof o.dicke_d === 'number' && o.staerke_d === undefined) {   // night baro width until 0.30.0 as index dicke_d
+    o = JSON.parse(JSON.stringify(o)); o.staerke_d = o.dicke_d + 1;
   }
   test = optionenPruefen(o);
   FARBEN.forEach(function (e) { if (farbeErlaubt(e[0], f[e[0]])) aus.farben[e[0]] = f[e[0]].toUpperCase(); });
@@ -383,21 +387,21 @@ var VORLAGEN = [
   { name: 'Paper', tag: {
       farben: { grund: 'FFFFFF', saeule: 'AAAAAA', regen: '0055AA', druck: '000000', jetzt: '000000', ziffer: '000000', rand: 'FFFFFF',
         kante: 'AAAAAA', z_tag: '000000', z_monat: '000000', z_min: '0055AA', z_max: 'AA0000', tlinie: '000000' },
-      optionen: { zeitbalken: false, voll_v: true, staerke_v: 1, druckvoll: true, dicke_d: 0, drucklage: 1 } },
+      optionen: { zeitbalken: false, voll_v: true, staerke_v: 1, druckvoll: true, staerke_d: 1, drucklage: 1 } },
     nacht: { an: true, optionen: {}, farben: { grund: '000000', saeule: '555555', regen: '55AAFF', druck: 'FFFFFF', jetzt: 'FFFFFF',
       ziffer: 'FFFFFF', rand: '000000', kante: '555555', z_tag: 'FFFFFF', z_monat: 'FFFFFF', z_min: '55AAFF', z_max: 'FF5555' } } },
   { name: 'Sundial', tag: {
       farben: { s_nacht: '000055', s_d1: 'AA0055', s_d2: 'FF5500', s_tag: 'FFAA00', saeule: '000000', regen: '55FFFF', druck: 'FFFFFF',
         tlinie: 'FFFFFF', jetzt: 'FFFFFF', rahmen_z: '000000', kante: 'AA5500', z_auf: 'FFFF55', z_auf2: 'FFFF55', z_unter: 'FF5500', z_unter2: 'FF5500' },
       optionen: { sonne: true, verlauf: true, tageslinie: true, staerke_h: 3, zeitmarke: true, voll_v: true, staerke_v: 3, rahmen_z: true,
-        zeitbalken: false, zeile1: true, zeile5: true, druckvoll: true, dicke_d: 0 } },
+        zeitbalken: false, zeile1: true, zeile5: true, druckvoll: true, staerke_d: 1 } },
     nacht: { an: false, farben: {}, optionen: {} } },
   { name: 'Terminal', tag: {
       farben: { saeule: '005500', regen: '55FF55', druck: 'AAFFAA', jetzt: '00FF00', ziffer: '00FF00', z_tag: '00FF00', z_monat: '00FF00',
         z_min: '00FF00', z_max: '00FF00', z_auf: '00AA00', z_auf2: '00AA00', z_unter: '00AA00', z_unter2: '00AA00', kante: '005500',
         rand: '000000', tlinie: '00FF00' },
       optionen: { zeitbalken: false, zeile1: true, zeile5: true, inhalt_1l: 4, inhalt_1r: 3, inhalt_2l: 1, inhalt_2r: 2,
-        inhalt_4l: 5, inhalt_4r: 6, inhalt_5l: 7, inhalt_5r: 8, regenvoll: true, dicke_d: 0 } },
+        inhalt_4l: 5, inhalt_4r: 6, inhalt_5l: 7, inhalt_5r: 8, regenvoll: true, staerke_d: 1 } },
     nacht: { an: false, farben: {}, optionen: {} } },
   { name: 'Minimal', tag: {
       farben: { saeule: '000000', regen: '5555AA', kante: '000000', z_tag: 'AAAAAA', z_monat: 'AAAAAA', z_min: 'AAAAAA', z_max: 'AAAAAA',
@@ -410,7 +414,7 @@ var VORLAGEN = [
       farben: { saeule: '000000', regen: '00AAFF', druck: 'FFFFFF', jetzt: 'FFAA00', ziffer: 'FF0000', kante: '000000', balken: 'FFAA00',
         z_tag: 'FF0000', z_monat: '0055FF', z_min: '0055FF', z_max: 'FF0000', s_nacht: '5500AA', s_tag: 'FFAA00', tlinie: 'FFAA00' },
       optionen: { luftdruck: false, regenvoll: true, sonne: true, tageslinie: true, schwelle: 0, zeile1: true, zeile5: true, druckvoll: true,
-        voll_v: true, regen_rel: true, rahmen_z: true, saeulen: false, regen_hinter: true, dicke_d: 0, staerke_v: 10, staerke_h: 10 } },
+        voll_v: true, regen_rel: true, rahmen_z: true, saeulen: false, regen_hinter: true, staerke_d: 1, staerke_v: 10, staerke_h: 10 } },
     nacht: { an: true, farben: { saeule: 'FFFFFF', ziffer: 'FFFFFF', kante: 'AA00FF', balken: 'FFFFFF', z_tag: 'FFFFFF', z_monat: 'FFFFFF',
       z_min: 'FFFFFF', z_max: 'FFFFFF', tlinie: 'FFFFFF' }, optionen: { verlauf: false, regenlage: 2, sonne: false, zeitmarke: false, staerke_h: 5 } } },
   // ---------- 0.30.0: two more, each with a night look ----------
@@ -424,7 +428,7 @@ var VORLAGEN = [
   { name: 'Signal', tag: {                                 // grey on black with one loud accent: an orange time bar and line; red light at night
       farben: { saeule: '000000', regen: 'FFFFFF', haupt: 'AAAAAA', kante: '555555', balken: 'FF5500', ziffer: '000000', kante_zeit: 'AA0000',
         rand: '000000', jetzt: 'FF5500', druck: '555555', z_auf2: 'FF5500' },
-      optionen: { saeulen: false, regenlage: 1, regen_rel: true, schwelle: 0, voll_v: true, staerke_v: 3, druckvoll: true, dicke_d: 0, drucklage: 1,
+      optionen: { saeulen: false, regenlage: 1, regen_rel: true, schwelle: 0, voll_v: true, staerke_v: 3, druckvoll: true, staerke_d: 1, drucklage: 1,
         zeile1: true, inhalt_1l: 20, inhalt_1r: 1 } },
     nacht: { an: true, farben: { regen: 'AA0000', haupt: 'AA0000', kante: '550000', balken: '550000', ziffer: 'FF0000', kante_zeit: '000000',
         jetzt: 'AA0000', druck: '550000', z_auf2: 'FF0000' }, optionen: { voll_v: false, staerke_v: 1 } } }
